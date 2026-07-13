@@ -1,54 +1,84 @@
 # RoleReady
 
-RoleReady is a privacy-first iOS career preparation app that turns verified work, study, volunteer, and project experience into stronger job applications and interview answers.
+RoleReady is a private, local-first iOS career preparation app that turns verified work, study, volunteer, and project experience into stronger applications and interview answers.
 
-The product is deliberately evidence-led: users capture an experience once, strengthen missing parts, match it transparently to a role, and create answer formats whose claims remain traceable to the original story. The core matching and writing pipeline runs on-device and does not require an account, subscription, API key, or network connection.
+The product is evidence-led: capture an experience once, strengthen what is missing, match it transparently to a role, and create answers whose claims remain traceable to the original story. Matching and answer generation run on device and require no account, API key, subscription, backend, or network connection.
 
-## Product highlights
+## What it does
 
-- A guided Evidence Bank with STAR structure, ownership prompts, confidentiality controls, and a constructive evidence-strength score.
-- Job-description analysis for pasted text and imported PDF, RTF, or plain-text documents.
-- Explainable requirement-to-evidence matching, including alternatives and honest gaps.
-- Grounded answer generation in quick prompt, 30-second, 60-second, 90-second, written STAR, résumé bullet, and cover-letter formats.
-- Interview preparation with likely questions, follow-up prompts, confidence tracking, and a distraction-free interview mode.
-- Application pipeline, evidence coverage insights, deadline/interview reminders, JSON export, full deletion, and optional Face ID/passcode app lock.
-- A realistic sample workspace for evaluation; it can be removed from Settings at any time.
-- Responsive iPhone and iPad layouts, Dynamic Type, VoiceOver labels, Reduce Motion support, dark mode, and iOS 26 Liquid Glass enhancements with iOS 18 fallbacks.
+- Builds a guided Evidence Bank with STAR structure, ownership prompts, confidentiality controls, and constructive evidence-strength coaching.
+- Analyses pasted job advertisements and imported PDF, Word (.docx), RTF, or plain-text documents.
+- Explains requirement-to-evidence matches, alternatives, cautions, and honest gaps.
+- Creates grounded quick cues, 30-, 60-, and 90-second answers, written STAR responses, resume bullets, cover-letter material, and selection-criteria responses.
+- Provides pre-interview practice decks with memory cues, follow-up prompts, confidence tracking, and post-interview reflections. RoleReady is not live interview assistance.
+- Tracks application status and interview dates, with optional reminders scheduled only for upcoming interviews.
+- Exports user-initiated JSON, supports complete local deletion, and offers optional Face ID or device-passcode App Lock.
+- Includes a realistic removable sample workspace for evaluation.
+- Supports iPhone and iPad, Dynamic Type, VoiceOver, Reduce Motion, dark mode, and iOS 26 Liquid Glass with iOS 18 fallbacks.
+
+## Product structure
+
+RoleReady has four primary tabs:
+
+- **Today** — upcoming interviews, preparation health, and next actions.
+- **Evidence** — searchable stories, guided capture, and evidence coaching.
+- **Roles** — job analysis, requirements, evidence matches, and application status.
+- **Practise** — saved grounded answers and pre-interview practice decks.
+
+Profile, Insights, Privacy, and Settings are available from Today rather than occupying another tab.
 
 ## Architecture
 
 - SwiftUI with the Observation framework for view and navigation state.
-- SwiftData for the local database; all career content stays on the device.
-- Apple frameworks only: PDFKit, UniformTypeIdentifiers, LocalAuthentication, UserNotifications, and NaturalLanguage.
-- Small deterministic domain services for scoring, parsing, matching, generation, export, and reminders. They are independently unit tested and have no UI dependencies.
-- A filesystem-synchronised Xcode project, so new source files in each target folder are picked up without editing the project file.
+- SwiftData for seven local models: career profile, experience, opportunity, job requirement, generated answer, practice session, and interview reflection.
+- Apple frameworks only: PDFKit, UniformTypeIdentifiers, LocalAuthentication, and UserNotifications.
+- Deterministic domain services for scoring, parsing, matching, grounded generation, export, and interview reminders.
+- A filesystem-synchronised Xcode project, so source files under each target folder are discovered without manual project-file membership changes.
+- Swift 6 language mode with complete strict concurrency and warnings treated as errors.
 
-## Run
+## Run on macOS
 
-Requirements: Xcode 26 or newer and an iOS 18+ simulator or device.
+Requirements: Xcode 26 or newer, with an iOS 18 or newer Simulator runtime.
 
-1. Open `RoleReady.xcodeproj`.
-2. Select the `RoleReady` scheme and any iOS 18+ simulator.
+1. Open `RoleReady.xcodeproj` in Xcode.
+2. Select the `RoleReady` scheme and an available iPhone or iPad simulator.
 3. Press **Run**.
 
-No environment variables, third-party packages, backend, or credentials are required. Notification and biometric prompts only appear after the related feature is enabled.
+No environment variables or third-party packages are required. Notification and device-authentication prompts appear only after the related feature is enabled.
 
-## Test
+## Test on macOS
 
-In Xcode, select **Product → Test**, or run:
+Use **Product > Test** in Xcode, or run the repository script from Terminal:
 
 ```sh
-xcodebuild test \
-  -project RoleReady.xcodeproj \
-  -scheme RoleReady \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro'
+bash scripts/test-ios.sh
 ```
 
-The test suite covers evidence scoring, job parsing, matching explanations, grounded answer generation, export redaction, and first-run seed integrity. UI tests cover onboarding, adding evidence, analysing a role, and generating an answer.
+The script selects an available iPhone simulator dynamically, boots it if needed, and runs unit and UI tests with code signing disabled. Set `RESULT_BUNDLE_PATH` to choose the `.xcresult` location:
 
-## Privacy model
+```sh
+RESULT_BUNDLE_PATH="$PWD/TestResults/RoleReady.xcresult" bash scripts/test-ios.sh
+```
 
-RoleReady has no analytics SDK, advertising identifier, remote account, or cloud dependency. Confidential experiences can be excluded from answer generation and exports. App Lock uses the device owner authentication policy, so biometric data never enters the app. Export files are created only after an explicit action and use complete file protection where the platform permits it.
+The tests cover evidence scoring, job parsing, explainable matching, grounded answer validation, export redaction, persistence integrity, sample data, answer provenance, practice, and important accessibility and end-to-end UI flows.
+
+## Verify on Windows
+
+Xcode, the iOS SDK, SwiftUI, and Simulator are unavailable on Windows, so a Windows machine cannot compile or execute this app. It can still run dependency-free repository checks:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows.ps1
+```
+
+These checks validate required files, project/configuration invariants, asset metadata, the seven-model schema declaration, and key privacy/navigation wiring. A clean Windows result is not a substitute for the macOS build-and-test gate. See [docs/QA.md](docs/QA.md).
+
+## Privacy and export
+
+RoleReady has no analytics SDK, advertising identifier, remote account, cloud dependency, embedded secret, or network permission. The app shell is marked privacy-sensitive, and App Lock uses iOS device-owner authentication so biometric data never enters the app.
+
+The default reduced-sensitivity export includes Standard and Private stories. It omits Confidential and Highly sensitive stories, answers and practice sessions derived from omitted stories, full job-ad source text, private role notes, and all interview reflections. A separate explicit option includes the complete dataset.
+
+Export creates a versioned JSON data file for portability and review. This release does **not** import or restore that file, so export should not be described as an in-app backup-and-restore mechanism.
 
 ## Repository layout
 
@@ -62,5 +92,5 @@ RoleReady/              app target
 RoleReadyTests/         domain and persistence unit tests
 RoleReadyUITests/       critical-flow UI tests
 docs/                   product, architecture, privacy, and QA notes
+scripts/                Windows verification and macOS test entry points
 ```
-

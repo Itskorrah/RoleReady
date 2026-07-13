@@ -1,0 +1,46 @@
+name: iOS quality gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Xcode build and test
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Report toolchain
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Run unit and UI tests
+        env:
+          RESULT_BUNDLE_PATH: ${{ runner.temp }}/RoleReady.xcresult
+          DERIVED_DATA_PATH: ${{ runner.temp }}/RoleReadyDerivedData
+          CODE_SIGNING_ALLOWED: "NO"
+        run: bash scripts/test-ios.sh
+
+      - name: Upload Xcode results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: RoleReady-xcresult-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/RoleReady.xcresult
+          if-no-files-found: warn
+          retention-days: 14
