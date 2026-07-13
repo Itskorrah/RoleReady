@@ -1,0 +1,783 @@
+import SwiftData
+import SwiftUI
+import UIKit
+
+struct AnswerStudioView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
+    @Query(sort: \Experience.updatedAt, order: .reverse) private var experiences: [Experience]
+    @Query(sort: \Opportunity.updatedAt, order: .reverse) private var opportunities: [Opportunity]
+    @Query(sort: \GeneratedAnswer.updatedAt, order: .reverse) private var savedAnswers: [GeneratedAnswer]
+
+    @State private var selectedExperienceID: UUID?
+    @State private var selectedOpportunityID: UUID?
+    @State private var question = ""
+    @State private var format: AnswerFormat = .sixtySeconds
+    @State private var audience: AnswerAudience = .hiringManager
+    @State private var tone: AnswerTone = .natural
+    @State private var draft: GeneratedDraft?
+    @State private var editedContent = ""
+    @State private var factsConfirmed = false
+    @State private var approvedContent = ""
+    @State private var generatedInputs: AnswerDraftInputs?
+    @State private var lastSuggestedQuestion = ""
+    @State private var hasLoadedInitialState = false
+    @State private var selectedClaim: AnswerClaim?
+    @State private var errorMessage: String?
+    @State private var isSaving = false
+    @State private var pendingConfirmation: AnswerStudioConfirmation?
+    @State private var baselineSnapshot: AnswerEditSnapshot?
+
+    private let showsCloseButton: Bool
+    private let answerID: UUID?
+
+    private let engine = GroundedAnswerEngine()
+
+    init(
+        answerID: UUID? = nil,
+        experienceID: UUID? = nil,
+        opportunityID: UUID? = nil,
+        initialQuestion: String? = nil,
+        showsCloseButton: Bool = false
+    ) {
+        self.answerID = answerID
+        _selectedExperienceID = State(initialValue: experienceID)
+        _selectedOpportunityID = State(initialValue: opportunityID)
+        _question = State(initialValue: initialQuestion ?? "")
+        self.showsCloseButton = showsCloseButton
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: RRSpacing.xl) {
+                setup
+                if let draft {
+                    answerDraft(draft)
+                } else {
+                    generationEmptyState
+                }
+            }
+            .padding(RRSpacing.md)
+            .padding(.bottom, RRSpacing.xxl)
+            .frame(maxWidth: 820)
+            .frame(maxWidth: .infinity)
+        }
+        .navigationTitle(answerID == nil ? "Answer Studio" : "Edit answer")
+        .navigationBarTitleDisplayMode(.inline)
+        .screenBackground()
+        .interactiveDismissDisabled(hasUnsavedAnswer)
+        .navigationBarBackButtonHidden(hasUnsavedAnswer && !showsCloseButton)
+        .toolbar {
+            if showsCloseButton {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close", action: requestDismissal)
+                }
+            } else if hasUnsavedAnswer {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(action: requestDismissal) {
+                        Label("Back", systemImage: "chevron.left")
+                    }
+                    .accessibilityIdentifier("answer-back")
+                }
+            }
+            if answerID != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Delete answer", systemImage: "trash", role: .destructive) {
+                            pendingConfirmation = .delete
+                        }
+                    } label: {
+                        Label("More actions", systemImage: "ellipsis.circle")
+                    }
+                    .accessibilityIdentifier("answer-more-actions")
+                }
+            }
+        }
+        .task {
+            await Task.yield()
+            loadInitialStateIfNeeded()
+        }
+        .onChange(of: selectedOpportunityID) { _, _ in
+            if question.isEmpty || question == lastSuggestedQuestion {
+                let nextSuggestion = suggestedQuestion
+                question = nextSuggestion
+                lastSuggestedQuestion = nextSuggestion
+            }
+        }
+        .onChange(of: currentInputs) { _, newInputs in
+            guard draft != nil, let generatedInputs, newInputs != generatedInputs else { return }
+            factsConfirmed = false
+            approvedContent = ""
+        }
+        .onChange(of: editedContent) { _, newContent in
+            if factsConfirmed, newContent != approvedContent {
+                factsConfirmed = false
+            }
+        }
+        .onChange(of: factsConfirmed) { _, isConfirmed in
+            if isConfirmed { approvedContent = editedContent }
+        }
+        .sheet(item: $selectedClaim) { claim in
+            SourceClaimSheet(claim: claim, experience: selectedExperience)
+        }
+        .alert("Answer Studio", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "Try again.")
+        }
+        .confirmationDialog(
+            confirmationTitle,
+            isPresented: Binding(
+                get: { pendingConfirmation != nil },
+                set: { if !$0 { pendingConfirmation = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            confirmationActions
+        } message: {
+            Text(confirmationMessage)
+        }
+        .accessibilityIdentifier("answer-studio")
+    }
+
+    private var setup: some View {
+        VStack(alignment: .leading, spacing: RRSpacing.md) {
+            SectionHeading(title: "Build from approved facts", eyebrow: "GROUNDING")
+            InfoBanner(
+                title: "Evidence before eloquence",
+                message: "RoleReady only uses the selected story. Missing facts stay missing, and every output clause keeps its source.",
+                kind: .information
+            )
+
+            VStack(alignment: .leading, spacing: RRSpacing.md) {
+                menuPicker("Story", symbol: "square.stack.3d.up.fill") {
+                    Picker("Story", selection: $selectedExperienceID) {
+                        Text("Choose a story").tag(UUID?.none)
+                        ForEach(experiences) { experience in
+                            Text(experience.title).tag(Optional(experience.id))
+                        }
+                    }
+                }
+
+                menuPicker("Role", symbol: "briefcase.fill") {
+                    Picker("Role", selection: $selectedOpportunityID) {
+                        Text("General preparation").tag(UUID?.none)
+                        ForEach(opportunities) { opportunity in
+                            Text("\(opportunity.roleTitle) · \(opportunity.organisation)").tag(Optional(opportunity.id))
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: RRSpacing.xs) {
+                    Label("Interview question", systemImage: "text.bubble")
+                        .font(.rrCaption)
+                        .foregroundStyle(BrandTheme.inkMuted)
+                    TextField("Tell me about a time…", text: $question, axis: .vertical)
+                        .lineLimit(2...5)
+                        .textFieldStyle(.plain)
+                        .padding(RRSpacing.sm)
+                        .background(BrandTheme.surfaceMuted, in: RoundedRectangle(cornerRadius: RRRadius.small))
+                        .accessibilityIdentifier("answer-question")
+                }
+
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: RRSpacing.sm) { optionPickers }
+                    VStack(spacing: RRSpacing.sm) { optionPickers }
+                }
+            }
+            .cardSurface()
+
+            if isDraftOutdated {
+                InfoBanner(
+                    title: "Inputs changed",
+                    message: "Your current wording is preserved. Regenerate to align it with the selected story, role and answer settings before saving.",
+                    kind: .warning
+                )
+            }
+
+            Button(action: requestGeneration) {
+                Label(draft == nil ? "Create grounded answer" : "Regenerate from source", systemImage: "wand.and.stars")
+            }
+            .buttonStyle(PrimaryActionButtonStyle())
+            .disabled(selectedExperience == nil || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityIdentifier("generate-answer")
+        }
+    }
+
+    @ViewBuilder
+    private var optionPickers: some View {
+        compactPicker("Length", selection: $format, options: AnswerFormat.allCases)
+        compactPicker("Audience", selection: $audience, options: AnswerAudience.allCases)
+        compactPicker("Tone", selection: $tone, options: AnswerTone.allCases)
+    }
+
+    private func answerDraft(_ draft: GeneratedDraft) -> some View {
+        let activeWarnings = reviewWarnings(for: draft)
+        let wordCount = editedContent.split(whereSeparator: \.isWhitespace).count
+
+        return VStack(alignment: .leading, spacing: RRSpacing.lg) {
+            HStack(alignment: .firstTextBaseline) {
+                SectionHeading(title: "Suggested phrasing", eyebrow: "\(wordCount) WORDS")
+                Spacer()
+                Label(factsConfirmed ? "Ready" : "Draft", systemImage: factsConfirmed ? "checkmark.seal.fill" : "pencil.circle")
+                    .font(.rrCaption)
+                    .foregroundStyle(factsConfirmed ? BrandTheme.success : BrandTheme.warning)
+            }
+
+            VStack(alignment: .leading, spacing: RRSpacing.md) {
+                TextEditor(text: $editedContent)
+                    .font(.rrBody)
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 210)
+                    .accessibilityLabel("Generated answer")
+                    .accessibilityHint("Editable suggested phrasing")
+                    .accessibilityIdentifier("answer-content")
+
+                Divider()
+                HStack {
+                    Label("Generated from \(draft.claims.count) source clauses", systemImage: "link")
+                        .font(.rrCaption)
+                        .foregroundStyle(BrandTheme.inkMuted)
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = editedContent
+                        appState.showToast("Answer copied", symbol: "doc.on.doc.fill")
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                    }
+                    .font(.rrHeadline)
+                }
+            }
+            .cardSurface()
+
+            if editedContent != draft.content {
+                InfoBanner(
+                    title: "User-edited wording",
+                    message: "Your changes are saved exactly as written. Reconfirm the facts after every edit, and use the source trail to check any new claim.",
+                    kind: .information
+                )
+            }
+
+            if !draft.quickCues.isEmpty {
+                VStack(alignment: .leading, spacing: RRSpacing.sm) {
+                    Text("QUICK CUES")
+                        .font(.rrCaption)
+                        .tracking(0.8)
+                        .foregroundStyle(BrandTheme.violet)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: RRSpacing.xs) {
+                            ForEach(draft.quickCues, id: \.self) { cue in
+                                Text(cue)
+                                    .font(.rrCaption)
+                                    .padding(.horizontal, RRSpacing.sm)
+                                    .padding(.vertical, RRSpacing.xs)
+                                    .background(BrandTheme.violetSoft, in: Capsule())
+                            }
+                        }
+                    }
+                }
+            }
+
+            sourceTrail(draft)
+
+            if !activeWarnings.isEmpty {
+                VStack(spacing: RRSpacing.sm) {
+                    ForEach(activeWarnings, id: \.self) { warning in
+                        InfoBanner(title: "Review before approval", message: warning, kind: .warning)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: RRSpacing.md) {
+                Toggle(isOn: $factsConfirmed) {
+                    VStack(alignment: .leading, spacing: RRSpacing.xxs) {
+                        Text("I confirm these facts and ownership")
+                            .font(.rrHeadline)
+                        Text("Approved answers can appear in your practice deck.")
+                            .font(.subheadline)
+                            .foregroundStyle(BrandTheme.inkMuted)
+                    }
+                }
+                .tint(BrandTheme.success)
+                .disabled(hasBlockingWarning(activeWarnings) || isDraftOutdated)
+                .accessibilityIdentifier("confirm-answer-facts")
+
+                Button {
+                    save(draft)
+                } label: {
+                    Label(
+                        factsConfirmed ? (answerID == nil ? "Approve to Practise" : "Update approved answer") : (answerID == nil ? "Save as draft" : "Update draft"),
+                        systemImage: factsConfirmed ? "checkmark.seal.fill" : "square.and.arrow.down"
+                    )
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .disabled(isSaving || isDraftOutdated || editedContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .accessibilityIdentifier("save-answer")
+            }
+            .cardSurface(tint: BrandTheme.tealSoft.opacity(0.55))
+
+            followUps(draft)
+        }
+    }
+
+    private var generationEmptyState: some View {
+        EmptyStatePanel(
+            title: "Your source stays visible",
+            message: "Choose a story and question. RoleReady will produce several useful formats without adding achievements or numbers.",
+            symbol: "link.badge.plus"
+        )
+    }
+
+    private func sourceTrail(_ draft: GeneratedDraft) -> some View {
+        VStack(alignment: .leading, spacing: RRSpacing.sm) {
+            SectionHeading(title: "Source trail", eyebrow: "TAP TO VERIFY")
+            ForEach(draft.claims) { claim in
+                Button {
+                    selectedClaim = claim
+                } label: {
+                    HStack(alignment: .top, spacing: RRSpacing.sm) {
+                        Text(claim.sourceField.uppercased())
+                            .font(.caption2.bold())
+                            .foregroundStyle(BrandTheme.violet)
+                            .frame(width: 82, alignment: .leading)
+                        Text(claim.text)
+                            .font(.subheadline)
+                            .foregroundStyle(BrandTheme.ink)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(BrandTheme.inkMuted)
+                    }
+                    .padding(RRSpacing.sm)
+                    .background(BrandTheme.surface, in: RoundedRectangle(cornerRadius: RRRadius.small))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Source: \(claim.sourceField). \(claim.text)")
+            }
+        }
+    }
+
+    private func followUps(_ draft: GeneratedDraft) -> some View {
+        VStack(alignment: .leading, spacing: RRSpacing.md) {
+            SectionHeading(title: "Likely follow-ups", eyebrow: "STAY NATURAL")
+            ForEach(draft.followUps, id: \.self) { question in
+                Label(question, systemImage: "arrow.turn.down.right")
+                    .font(.rrBody)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(RRSpacing.sm)
+                    .background(BrandTheme.surface, in: RoundedRectangle(cornerRadius: RRRadius.small))
+            }
+        }
+    }
+
+    private func menuPicker<Content: View>(_ title: String, symbol: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack {
+            Label(title, systemImage: symbol)
+                .font(.rrCaption)
+                .foregroundStyle(BrandTheme.inkMuted)
+            Spacer()
+            content().labelsHidden().pickerStyle(.menu)
+        }
+    }
+
+    private func compactPicker<Option: Identifiable & Hashable>(
+        _ title: String,
+        selection: Binding<Option>,
+        options: [Option]
+    ) -> some View where Option.ID == String {
+        VStack(alignment: .leading, spacing: RRSpacing.xxs) {
+            Text(title.uppercased())
+                .font(.caption2.bold())
+                .foregroundStyle(BrandTheme.inkMuted)
+            Picker(title, selection: selection) {
+                ForEach(options) { option in
+                    Text(optionTitle(option)).tag(option)
+                }
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, RRSpacing.xs)
+            .background(BrandTheme.surfaceMuted, in: RoundedRectangle(cornerRadius: RRRadius.small))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func optionTitle<Option>(_ option: Option) -> String {
+        if let format = option as? AnswerFormat { return format.title }
+        if let audience = option as? AnswerAudience { return audience.title }
+        if let tone = option as? AnswerTone { return tone.title }
+        return String(describing: option)
+    }
+
+    private var selectedExperience: Experience? {
+        guard let selectedExperienceID else { return nil }
+        return experiences.first { $0.id == selectedExperienceID }
+    }
+
+    private var selectedOpportunity: Opportunity? {
+        guard let selectedOpportunityID else { return nil }
+        return opportunities.first { $0.id == selectedOpportunityID }
+    }
+
+    private var existingAnswer: GeneratedAnswer? {
+        guard let answerID else { return nil }
+        return savedAnswers.first { $0.id == answerID }
+    }
+
+    private var currentInputs: AnswerDraftInputs {
+        AnswerDraftInputs(
+            experienceID: selectedExperienceID,
+            experienceRevision: selectedExperience?.updatedAt,
+            opportunityID: selectedOpportunityID,
+            opportunityRevision: selectedOpportunity?.contentUpdatedAt,
+            question: question.trimmingCharacters(in: .whitespacesAndNewlines),
+            format: format,
+            audience: audience,
+            tone: tone
+        )
+    }
+
+    private var allowedContext: String {
+        [question, selectedOpportunity?.roleTitle ?? ""]
+            .joined(separator: " ")
+    }
+
+    private var suggestedQuestion: String {
+        guard let selectedOpportunityID,
+              let opportunity = opportunities.first(where: { $0.id == selectedOpportunityID }) else {
+            return "Tell me about a piece of work you’re proud of."
+        }
+        return "Tell me about an example that shows why you’re suited to the \(opportunity.roleTitle) role."
+    }
+
+    private var isDraftOutdated: Bool {
+        draft != nil && generatedInputs != currentInputs
+    }
+
+    private var currentEditSnapshot: AnswerEditSnapshot? {
+        guard draft != nil else { return nil }
+        return AnswerEditSnapshot(
+            inputs: currentInputs,
+            content: editedContent,
+            factsConfirmed: factsConfirmed
+        )
+    }
+
+    private var hasUnsavedAnswer: Bool {
+        guard let currentEditSnapshot else { return false }
+        guard let baselineSnapshot else { return true }
+        return currentEditSnapshot != baselineSnapshot
+    }
+
+    private var confirmationTitle: String {
+        switch pendingConfirmation {
+        case .delete: "Delete this answer?"
+        case .replaceDraft: "Replace your current wording?"
+        case .discard: "Discard unsaved changes?"
+        case nil: "Answer Studio"
+        }
+    }
+
+    private var confirmationMessage: String {
+        switch pendingConfirmation {
+        case .delete: "The source evidence story remains in your bank."
+        case .replaceDraft: "Regenerating creates fresh wording from the current source and settings. Your edits cannot be recovered."
+        case .discard: "Your saved answer remains unchanged. Any edits made on this screen will be lost."
+        case nil: ""
+        }
+    }
+
+    @ViewBuilder
+    private var confirmationActions: some View {
+        switch pendingConfirmation {
+        case .delete:
+            Button("Delete answer and practice history", role: .destructive, action: deleteAnswer)
+        case .replaceDraft:
+            Button("Regenerate and replace", role: .destructive) {
+                pendingConfirmation = nil
+                generate()
+            }
+        case .discard:
+            Button("Discard changes", role: .destructive) {
+                pendingConfirmation = nil
+                dismiss()
+            }
+        case nil:
+            EmptyView()
+        }
+        Button("Cancel", role: .cancel) { pendingConfirmation = nil }
+    }
+
+    private func requestGeneration() {
+        if let draft, editedContent != draft.content {
+            pendingConfirmation = .replaceDraft
+        } else {
+            generate()
+        }
+    }
+
+    private func requestDismissal() {
+        if hasUnsavedAnswer {
+            pendingConfirmation = .discard
+        } else {
+            dismiss()
+        }
+    }
+
+    private func generate() {
+        guard let selectedExperience else { return }
+        do {
+            let newDraft = try engine.generate(
+                question: question,
+                from: selectedExperience,
+                format: format,
+                audience: audience,
+                tone: tone,
+                roleTitle: selectedOpportunity?.roleTitle
+            )
+            draft = newDraft
+            editedContent = newDraft.content
+            factsConfirmed = false
+            approvedContent = ""
+            generatedInputs = currentInputs
+            HapticService.success(enabled: appState.hapticsEnabled)
+        } catch {
+            errorMessage = error.localizedDescription
+            HapticService.warning(enabled: appState.hapticsEnabled)
+        }
+    }
+
+    private func save(_ draft: GeneratedDraft) {
+        guard let selectedExperience else { return }
+        isSaving = true
+        let answer: GeneratedAnswer
+        let previouslyConfirmedExperienceID: UUID?
+        if let existingAnswer {
+            answer = existingAnswer
+            previouslyConfirmedExperienceID = existingAnswer.isFactConfirmed ? existingAnswer.experienceID : nil
+        } else {
+            answer = GeneratedAnswer(
+                question: question,
+                experienceID: selectedExperience.id,
+                opportunityID: selectedOpportunityID,
+                format: format,
+                audience: audience,
+                tone: tone,
+                content: editedContent,
+                quickCues: draft.quickCues,
+                sourceFields: draft.claims.map(\.sourceField),
+                sourceClaims: [],
+                followUps: draft.followUps
+            )
+            previouslyConfirmedExperienceID = nil
+            modelContext.insert(answer)
+        }
+
+        answer.question = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        answer.experienceID = selectedExperience.id
+        answer.opportunityID = selectedOpportunityID
+        answer.format = format
+        answer.audience = audience
+        answer.tone = tone
+        answer.content = editedContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        answer.quickCues = draft.quickCues
+        answer.sourceFields = draft.claims.map(\.sourceField)
+        answer.sourceClaims = draft.claims.map {
+            StoredAnswerClaim(sourceField: $0.sourceField, text: $0.text)
+        }
+        answer.followUps = draft.followUps
+        answer.isFactConfirmed = factsConfirmed
+        answer.isUserEdited = editedContent != draft.content
+        answer.sourceExperienceUpdatedAt = selectedExperience.updatedAt
+        answer.sourceOpportunityUpdatedAt = selectedOpportunity?.contentUpdatedAt
+        answer.updatedAt = Date()
+
+        if factsConfirmed, previouslyConfirmedExperienceID != selectedExperience.id {
+            selectedExperience.useCount += 1
+        }
+        do {
+            try modelContext.save()
+            baselineSnapshot = currentEditSnapshot
+            appState.showToast(factsConfirmed ? "Answer ready for practice" : "Draft saved")
+            HapticService.success(enabled: appState.hapticsEnabled)
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            errorMessage = error.localizedDescription
+        }
+        isSaving = false
+    }
+
+    private func loadInitialStateIfNeeded() {
+        guard !hasLoadedInitialState else { return }
+        hasLoadedInitialState = true
+
+        if let answerID {
+            guard let answer = savedAnswers.first(where: { $0.id == answerID }) else {
+                errorMessage = "This saved answer is no longer available."
+                return
+            }
+            selectedExperienceID = answer.experienceID
+            selectedOpportunityID = answer.opportunityID
+            question = answer.question
+            format = answer.format
+            audience = answer.audience
+            tone = answer.tone
+
+            let claims = answer.sourceClaims.map {
+                AnswerClaim(id: UUID(), text: $0.text, sourceField: $0.sourceField)
+            }
+            let source = experiences.first { $0.id == answer.experienceID }
+            let warnings = source.map {
+                engine.reviewWarnings(
+                    output: answer.content,
+                    against: $0,
+                    allowedContext: [answer.question, selectedOpportunity?.roleTitle ?? ""].joined(separator: " ")
+                )
+            } ?? ["The source story is unavailable. This answer cannot be approved until it is grounded again."]
+            draft = GeneratedDraft(
+                content: answer.content,
+                quickCues: answer.quickCues,
+                claims: claims,
+                followUps: answer.followUps,
+                warnings: warnings,
+                wordCount: answer.content.split(whereSeparator: \.isWhitespace).count
+            )
+            editedContent = answer.content
+            generatedInputs = AnswerDraftInputs(
+                experienceID: answer.experienceID,
+                experienceRevision: answer.sourceExperienceUpdatedAt,
+                opportunityID: answer.opportunityID,
+                opportunityRevision: answer.sourceOpportunityUpdatedAt,
+                question: answer.question.trimmingCharacters(in: .whitespacesAndNewlines),
+                format: answer.format,
+                audience: answer.audience,
+                tone: answer.tone
+            )
+            let sourceIsCurrent = answer.isApprovalCurrent(for: source, opportunity: selectedOpportunity)
+            factsConfirmed = sourceIsCurrent && !hasBlockingWarning(warnings)
+            approvedContent = factsConfirmed ? answer.content : ""
+            baselineSnapshot = currentEditSnapshot
+            if answer.isFactConfirmed, !sourceIsCurrent {
+                appState.showToast("Source changed — reconfirm this answer", symbol: "exclamationmark.triangle.fill")
+            }
+            return
+        }
+
+        if selectedExperienceID == nil { selectedExperienceID = experiences.first?.id }
+        if selectedOpportunityID == nil {
+            selectedOpportunityID = opportunities.first(where: { $0.status == .interviewing })?.id
+                ?? opportunities.first(where: { $0.status == .preparing })?.id
+        }
+        if question.isEmpty {
+            question = suggestedQuestion
+            lastSuggestedQuestion = question
+        }
+    }
+
+    private func reviewWarnings(for draft: GeneratedDraft) -> [String] {
+        guard let selectedExperience else { return draft.warnings }
+        return engine.reviewWarnings(
+            output: editedContent,
+            against: selectedExperience,
+            allowedContext: allowedContext
+        )
+    }
+
+    private func hasBlockingWarning(_ warnings: [String]) -> Bool {
+        warnings.contains { warning in
+            warning.localizedCaseInsensitiveContains("unsupported number")
+                || warning.localizedCaseInsensitiveContains("overstate")
+        }
+    }
+
+    private func deleteAnswer() {
+        guard let answer = existingAnswer else { return }
+        do {
+            let answerID = answer.id
+            try modelContext.fetch(FetchDescriptor<PracticeSession>())
+                .filter { $0.answerID == answerID }
+                .forEach(modelContext.delete)
+            modelContext.delete(answer)
+            try modelContext.save()
+            appState.showToast("Answer deleted", symbol: "trash.fill")
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct AnswerDraftInputs: Equatable {
+    let experienceID: UUID?
+    let experienceRevision: Date?
+    let opportunityID: UUID?
+    let opportunityRevision: Date?
+    let question: String
+    let format: AnswerFormat
+    let audience: AnswerAudience
+    let tone: AnswerTone
+}
+
+private struct AnswerEditSnapshot: Equatable {
+    let inputs: AnswerDraftInputs
+    let content: String
+    let factsConfirmed: Bool
+}
+
+private enum AnswerStudioConfirmation {
+    case delete
+    case replaceDraft
+    case discard
+}
+
+private struct SourceClaimSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let claim: AnswerClaim
+    let experience: Experience?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: RRSpacing.lg) {
+                    Label("FROM YOUR STORY", systemImage: "link")
+                        .font(.rrCaption)
+                        .tracking(0.8)
+                        .foregroundStyle(BrandTheme.violet)
+                    Text(claim.sourceField)
+                        .font(.rrHero)
+                    Text(claim.text)
+                        .font(.rrBody)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .cardSurface(tint: BrandTheme.violetSoft.opacity(0.5))
+                    if let experience {
+                        Divider()
+                        Text(experience.title)
+                            .font(.rrHeadline)
+                        HStack {
+                            ConfidentialityBadge(level: experience.confidentiality)
+                            Spacer()
+                            Text(experience.updatedAt, format: .dateTime.day().month().year())
+                                .font(.rrCaption)
+                                .foregroundStyle(BrandTheme.inkMuted)
+                        }
+                    }
+                    InfoBanner(title: "No hidden source", message: "This clause was assembled from the field shown above. RoleReady did not search the web or another story.")
+                }
+                .padding(RRSpacing.lg)
+            }
+            .navigationTitle("Source")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .screenBackground()
+        }
+        .presentationDetents([.medium, .large])
+    }
+}
