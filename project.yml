@@ -1,0 +1,58 @@
+name: RoleReady
+options:
+  bundleIdPrefix: com.roleready
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: targeted
+    DEVELOPMENT_TEAM: ""
+targets:
+  RoleReady:
+    type: application
+    platform: iOS
+    sources:
+      - RoleReady
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roleready.app
+        PRODUCT_NAME: RoleReady
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: RoleReady
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSFaceIDUsageDescription: RoleReady uses Face ID only when you enable App Lock to protect your career evidence.
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    scheme:
+      testTargets:
+        - RoleReadyTests
+        - RoleReadyUITests
+  RoleReadyTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - RoleReadyTests
+    dependencies:
+      - target: RoleReady
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roleready.tests
+        GENERATE_INFOPLIST_FILE: YES
+  RoleReadyUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - RoleReadyUITests
+    dependencies:
+      - target: RoleReady
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.roleready.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: RoleReady
+
