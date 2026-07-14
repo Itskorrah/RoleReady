@@ -129,6 +129,7 @@ The shipped product has no cloud provider, analytics, third-party tracking, acco
 
 - Deterministic résumé extraction works best with text-led documents and may split or group complex layouts imperfectly.
 - Deterministic requirement grouping can miss implicit or unusually formatted criteria; every theme remains editable.
-- The architecture identifies Apple on-device and optional cloud provider types, but only the deterministic local provider is implemented.
+- Automatic AI uses Apple Foundation Models on supported iOS 26+ devices and otherwise falls back to the deterministic local provider. Every generated clause still passes RoleReady’s local grounding and approval rules.
+- Optional open-weight and premium-cloud boundaries are implemented, but no model weights or provider credentials are bundled. A downloadable model is not exposed until its exact artifact passes the documented device evaluation and licence gate.
 - Restore is an add-only UUID-based process rather than a semantic, field-by-field merge.
 - There is no cross-device sync or collaborative workspace.

@@ -67,7 +67,13 @@ The Xcode project uses filesystem-synchronised source groups. The checked-in pro
 - group job requirements; and
 - compose an answer from a `GroundedExperience` value.
 
-`LanguageServiceDescriptor` declares provider kind, availability, display name, and whether data leaves the device. The known provider categories are deterministic local, Apple on-device, and optional cloud. `DeterministicLanguageService` is the only shipped implementation and delegates to `CareerHistoryIngestionService`, `JobParser`, and `GroundedAnswerEngine`.
+`LanguageServiceDescriptor` declares provider kind, availability, model identity, download needs, cost summary, privacy behaviour and whether data leaves the device. The shipped boundary now covers deterministic local, Apple on-device, optional local open-weight, and premium cloud providers.
+
+`LanguageProviderRegistry` resolves the user’s preference. Automatic mode chooses Apple Foundation Models only when iOS reports the system model available; otherwise it uses `DeterministicLanguageService`. Apple language refinement is never authoritative: every changed answer clause is reconciled through `AnswerProvenanceService`, while the application continues to decide approval.
+
+The open-weight provider has an integrity-checked model store and runtime protocol but no bundled model. `LocalModelCandidateCatalog` records Qwen3.5-2B and Gemma 3n E2B as evaluation candidates. Installing weights requires an exact manifest, byte count, SHA-256 checksum and explicit licence acceptance. Premium cloud transport is disabled until there is a secure backend; it requires explicit source-level consent and blocks highly sensitive data.
+
+`AIEvaluationHarness` runs the same synthetic extraction, requirement, grounding and ownership fixtures across providers. Current results and the physical-device gate are documented in `LOCAL_AI_EVALUATION.md`.
 
 This protocol is an extension boundary, not permission to move policy into a model. A future provider must return structured values, make its availability and transmission behaviour explicit, and pass the same deterministic validation before data is stored or an answer is approved. The product must continue to fall back to the deterministic provider.
 

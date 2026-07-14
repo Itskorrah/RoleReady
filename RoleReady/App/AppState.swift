@@ -8,6 +8,7 @@ final class AppState {
         static let onboarding = "roleready.onboarding.complete"
         static let haptics = "roleready.haptics.enabled"
         static let sampleWorkspace = "roleready.sample.enabled"
+        static let languageProvider = "roleready.language.provider"
     }
 
     var selectedTab: AppTab = .today
@@ -21,6 +22,9 @@ final class AppState {
     }
     var isUsingSampleWorkspace: Bool {
         didSet { defaults.set(isUsingSampleWorkspace, forKey: Key.sampleWorkspace) }
+    }
+    var languageProvider: LanguageProviderSelection {
+        didSet { defaults.set(languageProvider.rawValue, forKey: Key.languageProvider) }
     }
 
     private let defaults: UserDefaults
@@ -41,6 +45,8 @@ final class AppState {
         self.hasCompletedOnboarding = selectedDefaults.bool(forKey: Key.onboarding)
         self.hapticsEnabled = selectedDefaults.object(forKey: Key.haptics) as? Bool ?? true
         self.isUsingSampleWorkspace = selectedDefaults.bool(forKey: Key.sampleWorkspace)
+        self.languageProvider = selectedDefaults.string(forKey: Key.languageProvider)
+            .flatMap(LanguageProviderSelection.init(rawValue:)) ?? .automatic
     }
 
     func completeOnboarding(usingSample: Bool, destination: SheetDestination? = nil) {
@@ -60,9 +66,11 @@ final class AppState {
         hasCompletedOnboarding = false
         isUsingSampleWorkspace = false
         hapticsEnabled = true
+        languageProvider = .automatic
         defaults.removeObject(forKey: Key.onboarding)
         defaults.removeObject(forKey: Key.sampleWorkspace)
         defaults.removeObject(forKey: Key.haptics)
+        defaults.removeObject(forKey: Key.languageProvider)
     }
 }
 
