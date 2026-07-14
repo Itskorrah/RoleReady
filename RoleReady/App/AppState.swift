@@ -10,7 +10,7 @@ final class AppState {
         static let sampleWorkspace = "roleready.sample.enabled"
     }
 
-    var selectedTab: AppTab = .prepare
+    var selectedTab: AppTab = .today
     var presentedSheet: SheetDestination?
     var toast: ToastMessage?
     var hasCompletedOnboarding: Bool {
@@ -45,7 +45,7 @@ final class AppState {
 
     func completeOnboarding(usingSample: Bool, destination: SheetDestination? = nil) {
         isUsingSampleWorkspace = usingSample
-        selectedTab = .prepare
+        selectedTab = .today
         presentedSheet = destination
         hasCompletedOnboarding = true
     }
@@ -55,7 +55,7 @@ final class AppState {
     }
 
     func resetAfterDataDeletion() {
-        selectedTab = .prepare
+        selectedTab = .today
         presentedSheet = nil
         hasCompletedOnboarding = false
         isUsingSampleWorkspace = false

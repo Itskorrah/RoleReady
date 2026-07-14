@@ -10,7 +10,7 @@ enum NotificationServiceError: LocalizedError, Equatable, Sendable {
         switch self {
         case .denied: "Notifications are off. You can enable them for RoleReady in iOS Settings."
         case .missingDate: "Add an interview or closing date before creating a reminder."
-        case .tooSoon: "The interview is too close to schedule a useful reminder. Open your prep deck now instead."
+        case .tooSoon: "That time is too close to schedule a useful reminder. Choose a later time."
         }
     }
 }
@@ -43,6 +43,33 @@ struct NotificationService {
         )
         try await UNUserNotificationCenter.current().add(request)
         return reminderDate
+    }
+
+    func schedule(
+        identifier: String,
+        title: String,
+        body: String,
+        dueAt: Date
+    ) async throws {
+        guard dueAt.timeIntervalSinceNow > 30 else { throw NotificationServiceError.tooSoon }
+        try await requestPermission()
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: dueAt)
+        let request = UNNotificationRequest(
+            identifier: identifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+        try await UNUserNotificationCenter.current().add(request)
+    }
+
+    func cancel(identifier: String) {
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [identifier])
     }
 
     func reminderDate(for interviewDate: Date, now: Date = Date()) throws -> Date {

@@ -1,0 +1,122 @@
+import XCTest
+@testable import RoleReady
+
+final class ApplicationMaterialServiceTests: XCTestCase {
+    private let evidence = [
+        CareerEvidenceSnapshot(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000101")!,
+            title: "Senior Software Engineer",
+            organisation: "Northstar Labs",
+            bullets: [
+                "Built a Swift release pipeline used by four product teams.",
+                "Reduced failed releases by 30% after adding automated validation.",
+                "Partnered with product and security teams to agree release controls."
+            ],
+            skills: ["Swift", "iOS", "CI/CD"],
+            capabilities: [Capability.technicalProblemSolving.rawValue, Capability.stakeholderCommunication.rawValue]
+        ),
+        CareerEvidenceSnapshot(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000102")!,
+            title: "Software Engineer",
+            organisation: "Harbour Systems",
+            bullets: [
+                "Developed iOS workflows for field technicians.",
+                "Investigated production defects and documented fixes for the support team."
+            ],
+            skills: ["Swift", "SQL"],
+            capabilities: [Capability.technicalProblemSolving.rawValue, Capability.teamwork.rawValue]
+        )
+    ]
+
+    private let requirements = [
+        JobRequirementSnapshot(
+            id: UUID(),
+            text: "Build reliable iOS applications using Swift",
+            keywords: ["iOS", "Swift", "reliability"],
+            capabilities: [Capability.technicalProblemSolving.rawValue],
+            importance: 3
+        ),
+        JobRequirementSnapshot(
+            id: UUID(),
+            text: "Lead Kubernetes platform migrations",
+            keywords: ["Kubernetes", "platform migration"],
+            capabilities: [Capability.leadership.rawValue],
+            importance: 3
+        )
+    ]
+
+    func testTailoringPrioritisesApprovedEvidenceAndLeavesGapsVisible() {
+        let secondID = evidence[1].id
+        let firstID = evidence[0].id
+        let baseline = ResumeDocument(
+            contact: .empty,
+            headline: "Software Engineer",
+            sections: [
+                ResumeSection(
+                    kind: .experience,
+                    items: [
+                        ResumeItem(sourceEntityIDs: [secondID], heading: "Software Engineer"),
+                        ResumeItem(sourceEntityIDs: [firstID], heading: "Senior Software Engineer")
+                    ]
+                )
+            ]
+        )
+
+        let result = TruthfulTailoringService().tailor(TailoringRequest(
+            jobTitle: "Senior iOS Engineer",
+            organisation: "Example Co",
+            requirements: requirements,
+            evidence: evidence,
+            baseline: baseline
+        ))
+
+        let items = result.document.sections[0].items
+        XCTAssertEqual(items.first?.sourceEntityIDs, [firstID])
+        XCTAssertEqual(result.report.matches[0].classification, .direct)
+        XCTAssertTrue(result.report.matches.contains { $0.classification == .noEvidence })
+        XCTAssertTrue(result.report.matches.filter { $0.classification == .noEvidence }.allSatisfy {
+            $0.sourceEntityIDs.isEmpty && $0.followUpQuestion != nil
+        })
+    }
+
+    func testCoverLetterUsesOnlyApprovedEvidenceAndCarriesParagraphGrounding() {
+        let result = GroundedCoverLetterService().generate(CoverLetterDraftRequest(
+            candidateName: "Alex Morgan",
+            roleTitle: "Senior iOS Engineer",
+            organisation: "Example Co",
+            motivation: "I value products that make complex field work simpler for people.",
+            tone: "Direct",
+            targetWords: 300,
+            requirements: requirements,
+            evidence: evidence
+        ))
+
+        XCTAssertTrue(result.body.contains("Northstar Labs"))
+        XCTAssertTrue(result.body.localizedCaseInsensitiveContains("reduced failed releases by 30%"))
+        XCTAssertFalse(result.body.localizedCaseInsensitiveContains("managed Kubernetes"))
+        XCTAssertFalse(result.sourceEntityIDs.isEmpty)
+        XCTAssertTrue(result.grounding.paragraphs.filter { $0.claimType == "career evidence" }.allSatisfy {
+            !$0.sourceEntityIDs.isEmpty
+        })
+        XCTAssertTrue(result.grounding.paragraphs.allSatisfy { !$0.isApproved })
+    }
+
+    func testClaimValidatorCatchesUnsupportedMetricsToolsAndOwnership() {
+        let warnings = ClaimValidationService().validate(
+            generatedText: "Led an AWS migration that reduced cost by 45%.",
+            approvedSources: ["Contributed to a release process that reduced failures by 30%."]
+        )
+
+        XCTAssertTrue(warnings.contains { $0.contains("45%") })
+        XCTAssertTrue(warnings.contains { $0.localizedCaseInsensitiveContains("led") })
+        XCTAssertTrue(warnings.contains { $0.contains("AWS") })
+    }
+
+    func testApprovedNumbersAndOwnershipPassValidation() {
+        let warnings = ClaimValidationService().validate(
+            generatedText: "Led validation work that reduced failures by 30% using Swift.",
+            approvedSources: ["Led validation work that reduced failures by 30% using Swift."]
+        )
+        XCTAssertTrue(warnings.isEmpty)
+    }
+}

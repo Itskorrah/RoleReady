@@ -48,14 +48,14 @@ struct OnboardingView: View {
             }
 
             VStack(alignment: .leading, spacing: RRSpacing.sm) {
-                Text("REAL EXPERIENCE. ROLE-READY ANSWERS.")
+                Text("YOUR PRIVATE CAREER WORKSPACE")
                     .font(.rrCaption)
                     .tracking(1.05)
                     .foregroundStyle(BrandTheme.violet)
-                Text("Prepare one answer you can trust.")
+                Text("Import your career once. Build every application from what is true.")
                     .font(.rrHero)
                     .fixedSize(horizontal: false, vertical: true)
-                Text("Add your career history and a job advertisement. RoleReady finds the strongest real example, helps you fill the important gaps, and turns it into an answer you approve.")
+                Text("Turn approved experience into clear résumés, tailored applications, cover letters and interview answers—without inventing claims.")
                     .font(.rrBody)
                     .foregroundStyle(BrandTheme.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -97,35 +97,35 @@ struct OnboardingView: View {
     private var actions: some View {
         VStack(spacing: RRSpacing.sm) {
             Button {
-                startWorkspace(sample: false, destination: .prepareForRole)
+                startWorkspace(sample: false, destination: .resumeIntake)
             } label: {
-                Label(isWorking ? "Preparing…" : "Prepare for a role", systemImage: "target")
+                Label(isWorking ? "Preparing…" : "Import or build my résumé", systemImage: "doc.badge.plus")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryActionButtonStyle())
             .disabled(isWorking)
-            .accessibilityHint("Starts with your career history and a job advertisement")
+            .accessibilityHint("Starts with a résumé document or pasted career history")
             .accessibilityIdentifier("start-blank-workspace")
 
             Button {
-                startWorkspace(sample: true, destination: nil)
+                startWorkspace(sample: false, destination: .prepareForRole)
             } label: {
-                Label("Explore a sample first", systemImage: "sparkles")
+                Label("Prepare for an interview", systemImage: "target")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(SecondaryActionButtonStyle())
             .disabled(isWorking)
-            .accessibilityIdentifier("start-sample-workspace")
+            .accessibilityIdentifier("start-interview-prep")
 
-            Button("Build my example library manually") {
-                startWorkspace(sample: false, destination: .addStory)
+            Button("Explore a sample workspace") {
+                startWorkspace(sample: true, destination: nil)
             }
             .font(.rrHeadline)
             .foregroundStyle(BrandTheme.violet)
             .padding(.vertical, RRSpacing.xs)
             .disabled(isWorking)
-            .accessibilityHint("Skips role preparation and opens the guided example editor")
-            .accessibilityIdentifier("start-example-library")
+            .accessibilityHint("Opens realistic sample career and interview information")
+            .accessibilityIdentifier("start-sample-workspace")
         }
     }
 

@@ -208,19 +208,31 @@ struct ResumeBullet: Codable, Hashable, Identifiable, Sendable {
     var sourceEntityIDs: [UUID]
     var evidence: EvidenceClassification
     var isApproved: Bool
+    var generator: String?
+    var generatedAt: Date?
+    var isUserEdited: Bool?
+    var validationWarnings: [String]?
 
     init(
         id: UUID = UUID(),
         text: String,
         sourceEntityIDs: [UUID] = [],
         evidence: EvidenceClassification = .noEvidence,
-        isApproved: Bool = false
+        isApproved: Bool = false,
+        generator: String? = nil,
+        generatedAt: Date? = nil,
+        isUserEdited: Bool? = nil,
+        validationWarnings: [String]? = nil
     ) {
         self.id = id
         self.text = text
         self.sourceEntityIDs = sourceEntityIDs
         self.evidence = evidence
         self.isApproved = isApproved
+        self.generator = generator
+        self.generatedAt = generatedAt
+        self.isUserEdited = isUserEdited
+        self.validationWarnings = validationWarnings
     }
 }
 
@@ -305,5 +317,108 @@ enum ResumeDocumentCodec {
             return .empty
         }
         return document
+    }
+}
+
+struct TailoringEvidenceMatch: Codable, Hashable, Identifiable, Sendable {
+    var id: UUID
+    var requirementID: UUID
+    var requirement: String
+    var classification: EvidenceClassification
+    var sourceEntityIDs: [UUID]
+    var sourceExcerpts: [String]
+    var reason: String
+    var followUpQuestion: String?
+
+    init(
+        id: UUID = UUID(),
+        requirementID: UUID,
+        requirement: String,
+        classification: EvidenceClassification,
+        sourceEntityIDs: [UUID],
+        sourceExcerpts: [String],
+        reason: String,
+        followUpQuestion: String? = nil
+    ) {
+        self.id = id
+        self.requirementID = requirementID
+        self.requirement = requirement
+        self.classification = classification
+        self.sourceEntityIDs = sourceEntityIDs
+        self.sourceExcerpts = sourceExcerpts
+        self.reason = reason
+        self.followUpQuestion = followUpQuestion
+    }
+}
+
+struct TailoringReport: Codable, Hashable, Sendable {
+    var matches: [TailoringEvidenceMatch]
+    var changeSummary: [String]
+    var validationWarnings: [String]
+    var generator: String
+    var generatedAt: Date
+
+    static let empty = TailoringReport(
+        matches: [],
+        changeSummary: [],
+        validationWarnings: [],
+        generator: "",
+        generatedAt: .distantPast
+    )
+}
+
+struct GroundedParagraph: Codable, Hashable, Identifiable, Sendable {
+    var id: UUID
+    var text: String
+    var sourceEntityIDs: [UUID]
+    var claimType: String
+    var isApproved: Bool
+    var isUserEdited: Bool
+    var validationWarnings: [String]
+
+    init(
+        id: UUID = UUID(),
+        text: String,
+        sourceEntityIDs: [UUID] = [],
+        claimType: String,
+        isApproved: Bool = false,
+        isUserEdited: Bool = false,
+        validationWarnings: [String] = []
+    ) {
+        self.id = id
+        self.text = text
+        self.sourceEntityIDs = sourceEntityIDs
+        self.claimType = claimType
+        self.isApproved = isApproved
+        self.isUserEdited = isUserEdited
+        self.validationWarnings = validationWarnings
+    }
+}
+
+struct CoverLetterGrounding: Codable, Hashable, Sendable {
+    var paragraphs: [GroundedParagraph]
+    var generator: String
+    var generatedAt: Date
+    var validationWarnings: [String]
+
+    static let empty = CoverLetterGrounding(
+        paragraphs: [],
+        generator: "",
+        generatedAt: .distantPast,
+        validationWarnings: []
+    )
+}
+
+enum CareerWorkspaceJSONCodec {
+    static func encode<T: Encodable>(_ value: T) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let string = String(data: data, encoding: .utf8) else { return "" }
+        return string
+    }
+
+    static func decode<T: Decodable>(_ type: T.Type, from value: String, fallback: T) -> T {
+        guard let data = value.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(type, from: data) else { return fallback }
+        return decoded
     }
 }

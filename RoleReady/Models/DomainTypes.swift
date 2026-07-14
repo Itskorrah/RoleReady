@@ -2,25 +2,31 @@ import Foundation
 import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable, Codable, Sendable {
-    case prepare
-    case examples
-    case practise
+    case today
+    case resumes
+    case jobs
+    case interview
+    case career
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .prepare: "Prepare"
-        case .examples: "My Examples"
-        case .practise: "Practise"
+        case .today: "Today"
+        case .resumes: "Résumés"
+        case .jobs: "Jobs"
+        case .interview: "Interview"
+        case .career: "Career"
         }
     }
 
     var symbol: String {
         switch self {
-        case .prepare: "target"
-        case .examples: "square.stack.3d.up.fill"
-        case .practise: "quote.bubble.fill"
+        case .today: "sparkles"
+        case .resumes: "doc.text.fill"
+        case .jobs: "briefcase.fill"
+        case .interview: "quote.bubble.fill"
+        case .career: "person.crop.rectangle.stack.fill"
         }
     }
 }

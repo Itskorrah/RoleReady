@@ -385,6 +385,7 @@ final class ResumeVersion {
     var templateRaw: String = ResumeTemplate.technical.rawValue
     var statusRaw: String = ResumeStatus.draft.rawValue
     var contentJSON: String = ""
+    var tailoringJSON: String = ""
     var isBaseline: Bool = false
     var isSample: Bool = false
     var createdAt: Date = Date()
@@ -402,6 +403,7 @@ final class ResumeVersion {
         template: ResumeTemplate = .technical,
         status: ResumeStatus = .draft,
         document: ResumeDocument = .empty,
+        tailoringReport: TailoringReport = .empty,
         isBaseline: Bool = false,
         isSample: Bool = false,
         createdAt: Date = Date(),
@@ -418,6 +420,7 @@ final class ResumeVersion {
         self.templateRaw = template.rawValue
         self.statusRaw = status.rawValue
         self.contentJSON = ResumeDocumentCodec.encode(document)
+        self.tailoringJSON = CareerWorkspaceJSONCodec.encode(tailoringReport)
         self.isBaseline = isBaseline
         self.isSample = isSample
         self.createdAt = createdAt
@@ -439,6 +442,11 @@ final class ResumeVersion {
         get { ResumeDocumentCodec.decode(contentJSON) }
         set { contentJSON = ResumeDocumentCodec.encode(newValue) }
     }
+
+    var tailoringReport: TailoringReport {
+        get { CareerWorkspaceJSONCodec.decode(TailoringReport.self, from: tailoringJSON, fallback: .empty) }
+        set { tailoringJSON = CareerWorkspaceJSONCodec.encode(newValue) }
+    }
 }
 
 @Model
@@ -448,6 +456,10 @@ final class CoverLetter {
     var resumeVersionID: UUID?
     var title: String = ""
     var body: String = ""
+    var groundingJSON: String = ""
+    var generator: String = ""
+    var isUserEdited: Bool = false
+    var validationWarningsRaw: String = ""
     var sourceEntityIDsRaw: String = ""
     var statusRaw: String = CoverLetterStatus.draft.rawValue
     var isSample: Bool = false
@@ -460,6 +472,10 @@ final class CoverLetter {
         resumeVersionID: UUID? = nil,
         title: String,
         body: String,
+        grounding: CoverLetterGrounding = .empty,
+        generator: String = "",
+        isUserEdited: Bool = false,
+        validationWarnings: [String] = [],
         sourceEntityIDs: [UUID] = [],
         status: CoverLetterStatus = .draft,
         isSample: Bool = false,
@@ -471,6 +487,10 @@ final class CoverLetter {
         self.resumeVersionID = resumeVersionID
         self.title = title
         self.body = body
+        self.groundingJSON = CareerWorkspaceJSONCodec.encode(grounding)
+        self.generator = generator
+        self.isUserEdited = isUserEdited
+        self.validationWarningsRaw = ListCodec.encode(validationWarnings)
         self.sourceEntityIDsRaw = ListCodec.encode(sourceEntityIDs.map(\.uuidString))
         self.statusRaw = status.rawValue
         self.isSample = isSample
@@ -486,6 +506,16 @@ final class CoverLetter {
     var status: CoverLetterStatus {
         get { CoverLetterStatus(rawValue: statusRaw) ?? .draft }
         set { statusRaw = newValue.rawValue }
+    }
+
+    var grounding: CoverLetterGrounding {
+        get { CareerWorkspaceJSONCodec.decode(CoverLetterGrounding.self, from: groundingJSON, fallback: .empty) }
+        set { groundingJSON = CareerWorkspaceJSONCodec.encode(newValue) }
+    }
+
+    var validationWarnings: [String] {
+        get { ListCodec.decode(validationWarningsRaw) }
+        set { validationWarningsRaw = ListCodec.encode(newValue) }
     }
 }
 
