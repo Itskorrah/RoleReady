@@ -20,7 +20,6 @@ struct PreparationFlowView: View {
     @State private var selectedDraftID: UUID?
     @State private var isAnalysingCareer = false
     @State private var isImportingCareer = false
-    @State private var showCareerImporter = false
 
     @State private var roleSource = ""
     @State private var roleTitle = ""
@@ -31,8 +30,6 @@ struct PreparationFlowView: View {
     @State private var selectedRequirementID: UUID?
     @State private var isAnalysingRole = false
     @State private var isImportingRole = false
-    @State private var showRoleImporter = false
-
     @State private var selectedExperienceID: UUID?
     @State private var explicitlySelectedSensitiveExperienceID: UUID?
     @State private var strengtheningDraft: ExperienceStrengtheningDraft?
@@ -74,16 +71,6 @@ struct PreparationFlowView: View {
             .screenBackground()
         }
         .interactiveDismissDisabled(step != .practice && (step != .career || hasUnsavedCareerInput))
-        .fileImporter(
-            isPresented: $showCareerImporter,
-            allowedContentTypes: DocumentImportService.supportedContentTypes,
-            onCompletion: handleCareerImport
-        )
-        .fileImporter(
-            isPresented: $showRoleImporter,
-            allowedContentTypes: DocumentImportService.supportedContentTypes,
-            onCompletion: handleRoleImport
-        )
         .confirmationDialog(
             "Close role preparation?",
             isPresented: $showCloseConfirmation,
@@ -262,7 +249,7 @@ struct PreparationFlowView: View {
     @ViewBuilder
     private var careerSourceButtons: some View {
         Button {
-            showCareerImporter = true
+            presentDocumentPicker(for: .career)
         } label: {
             Label(isImportingCareer ? "Importing…" : "Choose résumé", systemImage: "doc.badge.plus")
                 .frame(maxWidth: .infinity)
@@ -433,7 +420,7 @@ struct PreparationFlowView: View {
                 }
 
                 Button {
-                    showRoleImporter = true
+                    presentDocumentPicker(for: .role)
                 } label: {
                     Label(isImportingRole ? "Importing…" : "Choose job document", systemImage: "doc.badge.plus")
                 }
@@ -1373,9 +1360,9 @@ struct PreparationFlowView: View {
         strengtheningDraft = ExperienceStrengtheningDraft(experience)
     }
 
-    private func handleCareerImport(_ result: Result<URL, any Error>) {
+    private func handleCareerImport(_ url: URL) {
         handleDocumentImport(
-            result,
+            url,
             setLoading: { isImportingCareer = $0 },
             completion: { document in
                 careerSource = document.text
@@ -1385,9 +1372,9 @@ struct PreparationFlowView: View {
         )
     }
 
-    private func handleRoleImport(_ result: Result<URL, any Error>) {
+    private func handleRoleImport(_ url: URL) {
         handleDocumentImport(
-            result,
+            url,
             setLoading: { isImportingRole = $0 },
             completion: { document in
                 roleSource = document.text
@@ -1397,17 +1384,32 @@ struct PreparationFlowView: View {
         )
     }
 
+    private func handleDocumentPickerOutcome(
+        _ outcome: SystemDocumentPickerOutcome,
+        purpose: PreparationDocumentImport
+    ) {
+        guard case .selected(let url) = outcome else { return }
+        switch purpose {
+        case .career:
+            handleCareerImport(url)
+        case .role:
+            handleRoleImport(url)
+        }
+    }
+
+    private func presentDocumentPicker(for purpose: PreparationDocumentImport) {
+        SystemDocumentPickerService.shared.present(
+            contentTypes: DocumentImportService.supportedContentTypes
+        ) { outcome in
+            handleDocumentPickerOutcome(outcome, purpose: purpose)
+        }
+    }
+
     private func handleDocumentImport(
-        _ result: Result<URL, any Error>,
+        _ url: URL,
         setLoading: @escaping (Bool) -> Void,
         completion: @escaping (ImportedDocument) -> Void
     ) {
-        guard case .success(let url) = result else {
-            if case .failure(let error) = result {
-                issue = PreparationIssue(title: "Couldn’t open the document", message: error.localizedDescription)
-            }
-            return
-        }
         setLoading(true)
         Task {
             do {
@@ -1433,6 +1435,13 @@ struct PreparationFlowView: View {
         case .practice: step = .answer
         }
     }
+}
+
+private enum PreparationDocumentImport: String, Identifiable {
+    case career
+    case role
+
+    var id: String { rawValue }
 }
 
 private enum PreparationTextFocus: Hashable {

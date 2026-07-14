@@ -209,6 +209,25 @@ final class RoleReadyUITests: XCTestCase {
     }
 
     @MainActor
+    func testResumeImporterPresentsAndCancelsSystemDocumentPicker() {
+        app = launchApp()
+        XCTAssertTrue(element("onboarding-promise").waitForExistence(timeout: 4))
+        tapAfterScrolling(element("start-blank-workspace"))
+        XCTAssertTrue(element("preparation-flow").waitForExistence(timeout: 5))
+
+        tapAfterScrolling(element("import-career-document"))
+
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(
+            cancel.waitForExistence(timeout: 20),
+            "The system document picker did not finish presenting"
+        )
+        capture("resume-importer-presented")
+        cancel.tap()
+        XCTAssertTrue(element("preparation-flow").waitForExistence(timeout: 4))
+    }
+
+    @MainActor
     private func startSampleWorkspace() {
         XCTAssertTrue(element("onboarding-promise").waitForExistence(timeout: 4))
         tapAfterScrolling(element("start-sample-workspace"))

@@ -3,11 +3,12 @@ import PDFKit
 import UniformTypeIdentifiers
 import UIKit
 
-enum DocumentImportError: LocalizedError, Sendable {
+enum DocumentImportError: LocalizedError, Equatable, Sendable {
     case inaccessible
     case unsupportedType
     case tooLarge
     case emptyDocument
+    case scannedPDFNeedsOCR
     case unreadable
 
     var errorDescription: String? {
@@ -16,6 +17,7 @@ enum DocumentImportError: LocalizedError, Sendable {
         case .unsupportedType: "Choose a PDF, Word (.docx), RTF, or plain-text document."
         case .tooLarge: "Choose a document smaller than 20 MB."
         case .emptyDocument: "No selectable text was found in that document."
+        case .scannedPDFNeedsOCR: "This PDF appears to contain scanned pages rather than selectable text. Use a text-based PDF, paste the résumé text, or run OCR before importing it."
         case .unreadable: "The document could not be read. It may be damaged or password protected."
         }
     }
@@ -55,17 +57,14 @@ struct DocumentImportService: Sendable {
                 let pageText = document.page(at: index)?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 if pageText.isEmpty { emptyPages += 1 } else { pages.append(pageText) }
             }
+            guard !pages.isEmpty else { throw DocumentImportError.scannedPDFNeedsOCR }
             text = pages.joined(separator: "\n\n")
             if emptyPages > 0 {
-                warnings.append("\(emptyPages) page\(emptyPages == 1 ? "" : "s") had no selectable text and may need to be pasted manually.")
+                warnings.append("\(emptyPages) page\(emptyPages == 1 ? "" : "s") had no selectable text and may require OCR or manual review.")
             }
         } else if url.pathExtension.caseInsensitiveCompare("docx") == .orderedSame {
-            guard let attributed = try? NSAttributedString(
-                url: url,
-                options: [:],
-                documentAttributes: nil
-            ) else { throw DocumentImportError.unreadable }
-            text = attributed.string
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            text = try DOCXTextExtractor().extractText(from: data)
             warnings.append("Word formatting was removed so the role can be analysed as plain text.")
         } else if type.conforms(to: .rtf) {
             let attributed = try NSAttributedString(
