@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class WorkspaceRestoreServiceTests: XCTestCase {
-    func testVersionTwoExportRoundTripsAllRecordTypesAndApproval() throws {
+    func testVersionThreeExportRoundTripsInterviewRecordTypesAndApproval() throws {
         let source = try makeContainer()
         let expected = try insertCompleteWorkspace(into: source.mainContext)
         let data = try ExportService().makeExport(in: source.mainContext, includeConfidential: true)
@@ -12,7 +12,7 @@ final class WorkspaceRestoreServiceTests: XCTestCase {
         let destination = try makeContainer()
         let preview = try WorkspaceRestoreService().preview(data, in: destination.mainContext)
 
-        XCTAssertEqual(preview.sourceVersion, 2)
+        XCTAssertEqual(preview.sourceVersion, 3)
         XCTAssertTrue(preview.includesConfidential)
         XCTAssertEqual(preview.importable.profiles, 1)
         XCTAssertEqual(preview.importable.experiences, 1)
@@ -48,6 +48,311 @@ final class WorkspaceRestoreServiceTests: XCTestCase {
         XCTAssertEqual(session.experienceID, experience.id)
         XCTAssertEqual(session.opportunityID, opportunity.id)
         XCTAssertEqual(reflection.experienceIDs, [experience.id])
+    }
+
+    func testVersionThreeRoundTripsCareerResumeApplicationAndReminderLinks() throws {
+        let source = try makeContainer()
+        let base = try insertCompleteWorkspace(into: source.mainContext)
+        let stamp = Date(timeIntervalSince1970: 1_751_000_000)
+        let careerSource = CareerSource(
+            kind: .resume,
+            name: "Technical resume",
+            filename: "resume.pdf",
+            contentType: "application/pdf",
+            rawText: "iOS Engineer at Example Labs. Built Swift release checks.",
+            fingerprint: "synthetic-fingerprint",
+            confidentiality: .privateRecord,
+            importedAt: stamp,
+            updatedAt: stamp
+        )
+        let position = CareerPosition(
+            sourceID: careerSource.id,
+            title: "iOS Engineer",
+            organisation: "Example Labs",
+            startDate: stamp.addingTimeInterval(-31_536_000),
+            isCurrent: true,
+            summary: "Builds reliable mobile workflows.",
+            bullets: ["Added Swift release checks."],
+            skills: ["Swift"],
+            sourceExcerpt: "iOS Engineer at Example Labs",
+            verificationStatus: .approved,
+            approvedAt: stamp,
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let education = CareerEducation(
+            sourceID: careerSource.id,
+            institution: "Example University",
+            qualification: "Bachelor of Computing",
+            verificationStatus: .approved,
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let certification = CareerCertification(
+            sourceID: careerSource.id,
+            name: "Cloud Fundamentals",
+            issuer: "Example Institute",
+            verificationStatus: .approved,
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let skill = CareerSkill(
+            sourceID: careerSource.id,
+            name: "Swift",
+            level: .advanced,
+            yearsExperience: 4,
+            sourceExcerpt: "Built Swift release checks",
+            verificationStatus: .approved,
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let bullet = ResumeBullet(
+            text: "Added Swift release checks.",
+            sourceEntityIDs: [position.id],
+            evidence: .direct,
+            isApproved: true
+        )
+        let document = ResumeDocument(
+            contact: ResumeContact(name: "Test Applicant", email: "test@example.com", phone: "", location: "Sydney", linkedIn: "", portfolio: ""),
+            headline: "iOS Engineer",
+            sections: [ResumeSection(kind: .experience, items: [
+                ResumeItem(sourceEntityIDs: [position.id], heading: position.title, subheading: position.organisation, bullets: [bullet])
+            ])]
+        )
+        let baseline = ResumeVersion(
+            sourceID: careerSource.id,
+            name: "Technical baseline",
+            status: .ready,
+            document: document,
+            isBaseline: true,
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let tailored = ResumeVersion(
+            parentVersionID: baseline.id,
+            sourceID: careerSource.id,
+            opportunityID: base.opportunityID,
+            name: "Assistant Director application",
+            targetRole: "Assistant Director, Service Delivery",
+            targetOrganisation: "Example Agency",
+            document: document,
+            tailoringReport: TailoringReport(
+                matches: [],
+                changeSummary: ["Prioritised approved experience."],
+                validationWarnings: [],
+                generator: "test",
+                generatedAt: stamp
+            ),
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let letter = CoverLetter(
+            opportunityID: base.opportunityID,
+            resumeVersionID: tailored.id,
+            title: "Application letter",
+            body: "I am applying using approved experience from Example Labs.",
+            grounding: CoverLetterGrounding(
+                paragraphs: [GroundedParagraph(text: "I am applying using approved experience from Example Labs.", sourceEntityIDs: [position.id], claimType: "career evidence", isApproved: true)],
+                generator: "test",
+                generatedAt: stamp,
+                validationWarnings: []
+            ),
+            generator: "test",
+            sourceEntityIDs: [position.id],
+            status: .approved,
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let activity = ApplicationActivity(
+            opportunityID: base.opportunityID,
+            kind: .applied,
+            title: "Application submitted",
+            notes: "Submitted through the employer portal.",
+            occurredAt: stamp,
+            createdAt: stamp
+        )
+        let reminder = CareerReminder(
+            opportunityID: base.opportunityID,
+            activityID: activity.id,
+            kind: .followUp,
+            title: "Check application progress",
+            notes: "Review the employer portal.",
+            dueAt: stamp.addingTimeInterval(604_800),
+            notificationIdentifier: "device-local-only",
+            createdAt: stamp,
+            updatedAt: stamp
+        )
+        let span = CareerSourceSpan(
+            sourceID: careerSource.id,
+            entityID: position.id,
+            entityType: "CareerPosition",
+            fieldPath: "title",
+            startOffset: 0,
+            endOffset: 12,
+            excerpt: "iOS Engineer",
+            confidence: 0.98,
+            isApproved: true,
+            createdAt: stamp
+        )
+
+        source.mainContext.insert(careerSource)
+        source.mainContext.insert(position)
+        source.mainContext.insert(education)
+        source.mainContext.insert(certification)
+        source.mainContext.insert(skill)
+        source.mainContext.insert(baseline)
+        source.mainContext.insert(tailored)
+        source.mainContext.insert(letter)
+        source.mainContext.insert(activity)
+        source.mainContext.insert(reminder)
+        source.mainContext.insert(span)
+        try source.mainContext.save()
+
+        let data = try ExportService().makeExport(in: source.mainContext, includeConfidential: true)
+        let destination = try makeContainer()
+        let preview = try WorkspaceRestoreService().preview(data, in: destination.mainContext)
+        XCTAssertEqual(preview.importable.careerSources, 1)
+        XCTAssertEqual(preview.importable.sourceSpans, 1)
+        XCTAssertEqual(preview.importable.positions, 1)
+        XCTAssertEqual(preview.importable.education, 1)
+        XCTAssertEqual(preview.importable.certifications, 1)
+        XCTAssertEqual(preview.importable.careerSkills, 1)
+        XCTAssertEqual(preview.importable.resumes, 2)
+        XCTAssertEqual(preview.importable.coverLetters, 1)
+        XCTAssertEqual(preview.importable.activities, 1)
+        XCTAssertEqual(preview.importable.reminders, 1)
+        XCTAssertEqual(preview.rejected.total, 0)
+
+        _ = try WorkspaceRestoreService().restore(data, in: destination.mainContext)
+        let restoredSource = try XCTUnwrap(destination.mainContext.fetch(FetchDescriptor<CareerSource>()).first)
+        let restoredPosition = try XCTUnwrap(destination.mainContext.fetch(FetchDescriptor<CareerPosition>()).first)
+        let restoredResumes = try destination.mainContext.fetch(FetchDescriptor<ResumeVersion>())
+        let restoredTailored = try XCTUnwrap(restoredResumes.first { $0.opportunityID == base.opportunityID })
+        let restoredLetter = try XCTUnwrap(destination.mainContext.fetch(FetchDescriptor<CoverLetter>()).first)
+        let restoredReminder = try XCTUnwrap(destination.mainContext.fetch(FetchDescriptor<CareerReminder>()).first)
+
+        XCTAssertEqual(restoredSource.rawText, careerSource.rawText)
+        XCTAssertEqual(restoredPosition.sourceID, restoredSource.id)
+        XCTAssertEqual(restoredTailored.parentVersionID, baseline.id)
+        XCTAssertEqual(restoredTailored.document, document)
+        XCTAssertEqual(restoredLetter.resumeVersionID, restoredTailored.id)
+        XCTAssertEqual(restoredLetter.sourceEntityIDs, [restoredPosition.id])
+        XCTAssertEqual(restoredReminder.activityID, activity.id)
+        XCTAssertEqual(restoredReminder.notificationIdentifier, "", "Notification registrations are device-local and must not be restored")
+    }
+
+    func testRestoreRemovesUnavailableResumeAndCoverLetterEvidenceBeforeApproval() throws {
+        let source = try makeContainer()
+        let missingEvidenceID = UUID()
+        let missingRequirementID = UUID()
+        let opportunity = Opportunity(
+            roleTitle: "iOS Engineer",
+            organisation: "Example Labs",
+            location: "Sydney",
+            sourceText: "Example Labs is seeking an iOS Engineer.",
+            status: .preparing
+        )
+        let bullet = ResumeBullet(
+            text: "Led a release transformation.",
+            sourceEntityIDs: [missingEvidenceID],
+            evidence: .direct,
+            isApproved: true
+        )
+        let document = ResumeDocument(
+            contact: .empty,
+            headline: "iOS Engineer",
+            sections: [ResumeSection(kind: .experience, items: [
+                ResumeItem(
+                    sourceEntityIDs: [missingEvidenceID],
+                    heading: "iOS Engineer",
+                    bullets: [bullet]
+                )
+            ])]
+        )
+        let resume = ResumeVersion(
+            opportunityID: opportunity.id,
+            name: "Unsafe imported résumé",
+            status: .ready,
+            document: document,
+            tailoringReport: TailoringReport(
+                matches: [TailoringEvidenceMatch(
+                    requirementID: missingRequirementID,
+                    requirement: "Release leadership",
+                    classification: .direct,
+                    sourceEntityIDs: [missingEvidenceID],
+                    sourceExcerpts: ["Led a release transformation."],
+                    reason: "Imported assertion"
+                )],
+                changeSummary: [],
+                validationWarnings: [],
+                generator: "test",
+                generatedAt: Date()
+            )
+        )
+        let paragraph = GroundedParagraph(
+            text: "I led a release transformation.",
+            sourceEntityIDs: [missingEvidenceID],
+            claimType: "career evidence",
+            isApproved: true
+        )
+        let letter = CoverLetter(
+            opportunityID: opportunity.id,
+            resumeVersionID: resume.id,
+            title: "Application letter",
+            body: paragraph.text,
+            grounding: CoverLetterGrounding(
+                paragraphs: [paragraph],
+                generator: "test",
+                generatedAt: Date(),
+                validationWarnings: []
+            ),
+            sourceEntityIDs: [missingEvidenceID],
+            status: .approved
+        )
+        source.mainContext.insert(opportunity)
+        source.mainContext.insert(resume)
+        source.mainContext.insert(letter)
+        try source.mainContext.save()
+
+        let data = try ExportService().makeExport(in: source.mainContext, includeConfidential: true)
+        let destination = try makeContainer()
+        _ = try WorkspaceRestoreService().restore(data, in: destination.mainContext)
+
+        let restoredResume = try XCTUnwrap(destination.mainContext.fetch(FetchDescriptor<ResumeVersion>()).first)
+        let restoredBullet = try XCTUnwrap(restoredResume.document.sections.first?.items.first?.bullets.first)
+        XCTAssertEqual(restoredResume.status, .draft)
+        XCTAssertFalse(restoredBullet.isApproved)
+        XCTAssertEqual(restoredBullet.evidence, .noEvidence)
+        XCTAssertTrue(restoredBullet.sourceEntityIDs.isEmpty)
+        XCTAssertTrue(restoredResume.tailoringReport.matches.isEmpty)
+        XCTAssertFalse(restoredResume.tailoringReport.validationWarnings.isEmpty)
+
+        let restoredLetter = try XCTUnwrap(destination.mainContext.fetch(FetchDescriptor<CoverLetter>()).first)
+        XCTAssertEqual(restoredLetter.status, .draft)
+        XCTAssertTrue(restoredLetter.sourceEntityIDs.isEmpty)
+        XCTAssertFalse(try XCTUnwrap(restoredLetter.grounding.paragraphs.first).isApproved)
+        XCTAssertFalse(restoredLetter.validationWarnings.isEmpty)
+    }
+
+    func testRestoreRejectsCyclicResumeVersionParents() throws {
+        let source = try makeContainer()
+        let first = ResumeVersion(name: "First")
+        let second = ResumeVersion(name: "Second")
+        first.parentVersionID = second.id
+        second.parentVersionID = first.id
+        source.mainContext.insert(first)
+        source.mainContext.insert(second)
+        try source.mainContext.save()
+
+        let data = try ExportService().makeExport(in: source.mainContext, includeConfidential: true)
+        let destination = try makeContainer()
+        let preview = try WorkspaceRestoreService().preview(data, in: destination.mainContext)
+
+        XCTAssertEqual(preview.importable.resumes, 0)
+        XCTAssertEqual(preview.rejected.resumes, 2)
+        XCTAssertThrowsError(try WorkspaceRestoreService().restore(data, in: destination.mainContext)) { error in
+            XCTAssertEqual(error as? WorkspaceRestoreError, .nothingToRestore)
+        }
     }
 
     func testEngineQuickPromptAndSelectionCriteriaApprovalsSurviveRoundTrip() throws {

@@ -576,9 +576,19 @@ private struct RestoreCountSection: View {
     private var rows: [RestoreCountRow] {
         [
             RestoreCountRow(title: "Profile", value: counts.profiles),
+            RestoreCountRow(title: "Career sources", value: counts.careerSources),
+            RestoreCountRow(title: "Source links", value: counts.sourceSpans),
+            RestoreCountRow(title: "Employment and projects", value: counts.positions),
+            RestoreCountRow(title: "Education", value: counts.education),
+            RestoreCountRow(title: "Certifications", value: counts.certifications),
+            RestoreCountRow(title: "Career skills", value: counts.careerSkills),
             RestoreCountRow(title: "Examples", value: counts.experiences),
             RestoreCountRow(title: "Roles", value: counts.opportunities),
             RestoreCountRow(title: "Requirements", value: counts.requirements),
+            RestoreCountRow(title: "Résumé versions", value: counts.resumes),
+            RestoreCountRow(title: "Cover letters", value: counts.coverLetters),
+            RestoreCountRow(title: "Application updates", value: counts.activities),
+            RestoreCountRow(title: "Reminders", value: counts.reminders),
             RestoreCountRow(title: "Answers", value: counts.answers),
             RestoreCountRow(title: "Practice sessions", value: counts.practiceSessions),
             RestoreCountRow(title: "Interview reflections", value: counts.reflections)
