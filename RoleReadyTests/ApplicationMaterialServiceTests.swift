@@ -119,4 +119,54 @@ final class ApplicationMaterialServiceTests: XCTestCase {
         )
         XCTAssertTrue(warnings.isEmpty)
     }
+
+    func testSelectedCoverLetterSectionRegenerationKeepsOtherSectionsAndGrounding() throws {
+        let request = CoverLetterDraftRequest(
+            candidateName: "Alex Morgan",
+            roleTitle: "Senior iOS Engineer",
+            organisation: "Example Co",
+            motivation: "",
+            tone: "Direct",
+            targetWords: 300,
+            requirements: requirements,
+            evidence: evidence
+        )
+        var original = GroundedCoverLetterService().generate(request).grounding
+        let selectedIndex = try XCTUnwrap(original.paragraphs.firstIndex { $0.claimType == "career evidence" })
+        let selectedID = original.paragraphs[selectedIndex].id
+        let unchanged = original.paragraphs.enumerated()
+            .filter { $0.offset != selectedIndex }
+            .map(\.element)
+        original.paragraphs[selectedIndex].text = "A user-edited paragraph to replace."
+        original.paragraphs[selectedIndex].isApproved = true
+        original.paragraphs[selectedIndex].isUserEdited = true
+
+        let updated = try XCTUnwrap(CoverLetterSectionRegenerator().regenerate(
+            paragraphID: selectedID,
+            in: original,
+            request: request
+        ))
+
+        let regenerated = try XCTUnwrap(updated.paragraphs.first { $0.id == selectedID })
+        XCTAssertNotEqual(regenerated.text, "A user-edited paragraph to replace.")
+        XCTAssertFalse(regenerated.sourceEntityIDs.isEmpty)
+        XCTAssertFalse(regenerated.isApproved)
+        XCTAssertFalse(regenerated.isUserEdited)
+        XCTAssertEqual(
+            updated.paragraphs.filter { $0.id != selectedID },
+            unchanged
+        )
+    }
+
+    func testCoverLetterTextExportCreatesReadableShareFile() throws {
+        let url = try CoverLetterExportService().makeTemporaryTextFile(
+            title: "Senior iOS Engineer / Example Co",
+            body: "A concise, grounded application letter."
+        )
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        XCTAssertEqual(url.pathExtension, "txt")
+        XCTAssertFalse(url.lastPathComponent.contains("/"))
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "A concise, grounded application letter.")
+    }
 }

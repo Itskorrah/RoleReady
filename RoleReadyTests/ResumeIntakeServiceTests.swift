@@ -62,6 +62,19 @@ final class ResumeIntakeServiceTests: XCTestCase {
         }
     }
 
+    func testEditedDateTextCanBeReparsedBeforeImport() throws {
+        let range = ResumeIntakeService().parseDateRange("2018 – Present")
+        let startYear = try XCTUnwrap(range.start).formatted(.dateTime.year())
+
+        XCTAssertEqual(startYear, "2018")
+        XCTAssertNil(range.end)
+        XCTAssertTrue(range.isCurrent)
+
+        let finished = ResumeIntakeService().parseDateRange("2018 – 2021")
+        XCTAssertEqual(try XCTUnwrap(finished.end).formatted(.dateTime.year()), "2021")
+        XCTAssertFalse(finished.isCurrent)
+    }
+
     @MainActor
     func testApprovedImportCreatesGroundedBaselineResume() throws {
         let container = try makeContainer()

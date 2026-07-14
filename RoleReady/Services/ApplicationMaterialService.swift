@@ -309,6 +309,50 @@ struct GroundedCoverLetterService: Sendable {
     }
 }
 
+struct CoverLetterSectionRegenerator: Sendable {
+    func regenerate(
+        paragraphID: UUID,
+        in grounding: CoverLetterGrounding,
+        request: CoverLetterDraftRequest
+    ) -> CoverLetterGrounding? {
+        guard let selectedIndex = grounding.paragraphs.firstIndex(where: { $0.id == paragraphID }) else {
+            return nil
+        }
+        let selected = grounding.paragraphs[selectedIndex]
+        let fresh = GroundedCoverLetterService().generate(request).grounding
+        let replacement = fresh.paragraphs.first { candidate in
+            candidate.claimType == selected.claimType
+                && !candidate.sourceEntityIDs.isEmpty
+                && !Set(candidate.sourceEntityIDs).isDisjoint(with: Set(selected.sourceEntityIDs))
+        } ?? fresh.paragraphs.first { $0.claimType == selected.claimType }
+        guard var replacement else { return nil }
+
+        replacement.id = selected.id
+        replacement.isApproved = false
+        replacement.isUserEdited = false
+        var updated = grounding
+        updated.paragraphs[selectedIndex] = replacement
+        updated.generator = fresh.generator
+        updated.generatedAt = fresh.generatedAt
+        updated.validationWarnings = fresh.validationWarnings
+        return updated
+    }
+}
+
+struct CoverLetterExportService: Sendable {
+    func makeTemporaryTextFile(title: String, body: String) throws -> URL {
+        let cleanTitle = title
+            .replacingOccurrences(of: #"[^A-Za-z0-9 _-]"#, with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let filename = cleanTitle.isEmpty ? "RoleReady cover letter" : cleanTitle
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(filename)
+            .appendingPathExtension("txt")
+        try Data(body.utf8).write(to: url, options: .atomic)
+        return url
+    }
+}
+
 struct ClaimValidationService: Sendable {
     func validate(
         generatedText: String,
@@ -391,16 +435,17 @@ struct CareerApplicationService {
         targetWords: Int,
         in context: ModelContext
     ) throws -> CoverLetter {
-        let result = GroundedCoverLetterService().generate(CoverLetterDraftRequest(
-            candidateName: profile?.name ?? "",
-            roleTitle: opportunity.roleTitle,
-            organisation: opportunity.organisation,
+        let request = makeCoverLetterRequest(
+            opportunity: opportunity,
+            requirements: requirements,
+            positions: positions,
+            skills: skills,
+            profile: profile,
             motivation: motivation,
             tone: tone,
-            targetWords: targetWords,
-            requirements: requirements.filter(\.isConfirmed).map(snapshot),
-            evidence: evidenceSnapshots(positions: positions, skills: skills)
-        ))
+            targetWords: targetWords
+        )
+        let result = GroundedCoverLetterService().generate(request)
         let letter = CoverLetter(
             opportunityID: opportunity.id,
             resumeVersionID: resume?.id,
@@ -414,6 +459,28 @@ struct CareerApplicationService {
         context.insert(letter)
         try context.save()
         return letter
+    }
+
+    func makeCoverLetterRequest(
+        opportunity: Opportunity,
+        requirements: [JobRequirement],
+        positions: [CareerPosition],
+        skills: [CareerSkill],
+        profile: CareerProfile?,
+        motivation: String,
+        tone: String,
+        targetWords: Int
+    ) -> CoverLetterDraftRequest {
+        CoverLetterDraftRequest(
+            candidateName: profile?.name ?? "",
+            roleTitle: opportunity.roleTitle,
+            organisation: opportunity.organisation,
+            motivation: motivation,
+            tone: tone,
+            targetWords: targetWords,
+            requirements: requirements.filter(\.isConfirmed).map(snapshot),
+            evidence: evidenceSnapshots(positions: positions, skills: skills)
+        )
     }
 
     private func snapshot(_ requirement: JobRequirement) -> JobRequirementSnapshot {

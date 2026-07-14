@@ -52,7 +52,8 @@ struct JobApplicationWorkspaceView: View {
             CoverLetterEditorSheet(
                 letter: letter,
                 approvedSources: approvedSourceText,
-                allowedContext: opportunities.first.map { [$0.roleTitle, $0.organisation, $0.sourceText] } ?? []
+                allowedContext: opportunities.first.map { [$0.roleTitle, $0.organisation, $0.sourceText] } ?? [],
+                regenerationRequest: coverLetterRegenerationRequest
             )
         }
         .sheet(isPresented: $isAddingActivity) {
@@ -264,6 +265,20 @@ struct JobApplicationWorkspaceView: View {
     private var approvedSourceText: [String] {
         approvedPositions.flatMap { [$0.title, $0.organisation, $0.summary] + $0.bullets + $0.skills }
             + approvedSkills.flatMap { [$0.name, $0.sourceExcerpt] }
+    }
+    private var coverLetterRegenerationRequest: CoverLetterDraftRequest? {
+        guard let opportunity = opportunities.first else { return nil }
+        let currentWords = editingLetter?.body.split(whereSeparator: \.isWhitespace).count ?? 300
+        return CareerApplicationService().makeCoverLetterRequest(
+            opportunity: opportunity,
+            requirements: requirements,
+            positions: positions,
+            skills: skills,
+            profile: profiles.first,
+            motivation: "",
+            tone: "Direct and professional",
+            targetWords: min(max(currentWords, 250), 400)
+        )
     }
 
     private func tailor(_ resume: ResumeVersion, for opportunity: Opportunity) {
@@ -614,8 +629,10 @@ private struct CoverLetterEditorSheet: View {
     @Bindable var letter: CoverLetter
     let approvedSources: [String]
     let allowedContext: [String]
+    let regenerationRequest: CoverLetterDraftRequest?
     @State private var originalBody = ""
     @State private var errorMessage: String?
+    @State private var shareURL: URL?
 
     var body: some View {
         NavigationStack {
@@ -644,6 +661,12 @@ private struct CoverLetterEditorSheet: View {
                                 Label("Linked to \(paragraph.sourceEntityIDs.count) approved source\(paragraph.sourceEntityIDs.count == 1 ? "" : "s")", systemImage: "link")
                                     .font(.caption).foregroundStyle(BrandTheme.tealText)
                             }
+                            Button("Regenerate this section", systemImage: "arrow.clockwise") {
+                                regenerate(paragraph.id)
+                            }
+                            .font(.caption.weight(.semibold))
+                            .disabled(regenerationRequest == nil)
+                            .accessibilityIdentifier("coverLetter.regenerate.\(paragraph.id.uuidString)")
                         }
                     }
                 }
@@ -659,21 +682,34 @@ private struct CoverLetterEditorSheet: View {
                             .font(.caption).foregroundStyle(BrandTheme.amberText)
                     }
                 }
+                Section("Export") {
+                    Button("Share editable text", systemImage: "square.and.arrow.up", action: share)
+                        .accessibilityIdentifier("coverLetter.share")
+                    Text("Shares a plain-text file that can be saved, AirDropped, messaged or attached to an email.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .navigationTitle("Cover letter")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Save", action: save) }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
             }
             .onAppear { originalBody = letter.body }
             .alert("Could not save", isPresented: Binding(
                 get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } }
             )) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "Try again.") }
+            .sheet(isPresented: Binding(
+                get: { shareURL != nil },
+                set: { if !$0 { shareURL = nil } }
+            )) {
+                if let shareURL { ShareSheet(items: [shareURL]) }
+            }
         }
     }
 
-    private func save() {
+    private func save(shouldDismiss: Bool = true) {
         letter.isUserEdited = letter.body != originalBody
         letter.validationWarnings = ClaimValidationService().validate(
             generatedText: letter.body,
@@ -684,9 +720,47 @@ private struct CoverLetterEditorSheet: View {
         letter.updatedAt = Date()
         do {
             try modelContext.save()
-            dismiss()
+            originalBody = letter.body
+            if shouldDismiss { dismiss() }
         } catch {
             modelContext.rollback()
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func regenerate(_ paragraphID: UUID) {
+        guard let regenerationRequest,
+              let grounding = CoverLetterSectionRegenerator().regenerate(
+                paragraphID: paragraphID,
+                in: letter.grounding,
+                request: regenerationRequest
+              ) else {
+            errorMessage = "This section could not be regenerated from the currently approved evidence."
+            return
+        }
+        letter.grounding = grounding
+        letter.body = grounding.paragraphs.map(\.text).joined(separator: "\n\n")
+        letter.generator = grounding.generator
+        letter.sourceEntityIDs = Array(Set(grounding.paragraphs.flatMap(\.sourceEntityIDs)))
+        letter.validationWarnings = ClaimValidationService().validate(
+            generatedText: letter.body,
+            approvedSources: approvedSources,
+            allowedContext: allowedContext
+        )
+        letter.status = .draft
+        letter.isUserEdited = false
+        letter.updatedAt = Date()
+    }
+
+    private func share() {
+        save(shouldDismiss: false)
+        guard errorMessage == nil else { return }
+        do {
+            shareURL = try CoverLetterExportService().makeTemporaryTextFile(
+                title: letter.title,
+                body: letter.body
+            )
+        } catch {
             errorMessage = error.localizedDescription
         }
     }

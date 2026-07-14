@@ -204,51 +204,55 @@ private struct ResumeVersionCard: View {
     let onDelete: () -> Void
 
     var body: some View {
-        Button(action: onOpen) {
-            HStack(alignment: .top, spacing: RRSpacing.md) {
-                Image(systemName: version.opportunityID == nil ? "doc.text.fill" : "target")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(BrandTheme.violet)
-                    .frame(width: 48, height: 48)
-                    .background(BrandTheme.violetSoft, in: RoundedRectangle(cornerRadius: RRRadius.small))
-                VStack(alignment: .leading, spacing: RRSpacing.xs) {
-                    HStack {
-                        Text(version.name)
-                            .font(.rrHeadline)
-                            .foregroundStyle(BrandTheme.ink)
-                            .multilineTextAlignment(.leading)
-                        if version.isBaseline {
-                            Text("BASELINE")
-                                .font(.caption2.bold())
-                                .foregroundStyle(BrandTheme.tealText)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(BrandTheme.tealSoft, in: Capsule())
+        HStack(alignment: .top, spacing: RRSpacing.md) {
+            Button(action: onOpen) {
+                HStack(alignment: .top, spacing: RRSpacing.md) {
+                    Image(systemName: version.opportunityID == nil ? "doc.text.fill" : "target")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(BrandTheme.violet)
+                        .frame(width: 48, height: 48)
+                        .background(BrandTheme.violetSoft, in: RoundedRectangle(cornerRadius: RRRadius.small))
+                    VStack(alignment: .leading, spacing: RRSpacing.xs) {
+                        HStack {
+                            Text(version.name)
+                                .font(.rrHeadline)
+                                .foregroundStyle(BrandTheme.ink)
+                                .multilineTextAlignment(.leading)
+                            if version.isBaseline {
+                                Text("BASELINE")
+                                    .font(.caption2.bold())
+                                    .foregroundStyle(BrandTheme.tealText)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(BrandTheme.tealSoft, in: Capsule())
+                            }
                         }
-                    }
-                    if !version.targetRole.isEmpty {
-                        Text([version.targetRole, version.targetOrganisation].filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.subheadline)
+                        if !version.targetRole.isEmpty {
+                            Text([version.targetRole, version.targetOrganisation].filter { !$0.isEmpty }.joined(separator: " · "))
+                                .font(.subheadline)
+                                .foregroundStyle(BrandTheme.inkMuted)
+                        }
+                        Text("Updated \(version.updatedAt.formatted(.relative(presentation: .named))) · \(version.status.title)")
+                            .font(.rrCaption)
                             .foregroundStyle(BrandTheme.inkMuted)
                     }
-                    Text("Updated \(version.updatedAt.formatted(.relative(presentation: .named))) · \(version.status.title)")
-                        .font(.rrCaption)
-                        .foregroundStyle(BrandTheme.inkMuted)
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                Menu {
-                    Button("Duplicate", systemImage: "doc.on.doc", action: onDuplicate)
-                    Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Résumé actions")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface()
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("resumes.version.\(version.id.uuidString)")
+            Menu {
+                Button("Duplicate", systemImage: "doc.on.doc", action: onDuplicate)
+                Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Résumé actions for \(version.name)")
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("resumes.version.\(version.id.uuidString)")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
     }
 }

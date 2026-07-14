@@ -397,7 +397,7 @@ private struct ResumeDraftReviewView: View {
                         TextField("Qualification", text: $item.qualification)
                         TextField("Institution", text: $item.institution)
                         TextField("Field of study", text: $item.fieldOfStudy)
-                        TextField("Dates as shown", text: $item.dateText)
+                        TextField("Dates as shown", text: educationDateText($item))
                         DisclosureGroup("Source excerpt") {
                             Text(item.sourceExcerpt).font(.footnote.monospaced()).textSelection(.enabled)
                         }
@@ -437,6 +437,18 @@ private struct ResumeDraftReviewView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    private func educationDateText(_ item: Binding<EducationIntakeDraft>) -> Binding<String> {
+        Binding(
+            get: { item.wrappedValue.dateText },
+            set: { value in
+                item.wrappedValue.dateText = value
+                let parsed = ResumeIntakeService().parseDateRange(value)
+                item.wrappedValue.startDate = parsed.start
+                item.wrappedValue.endDate = parsed.end
+            }
+        )
+    }
+
     private func mergeDuplicatePositions() {
         var merged: [PositionIntakeDraft] = []
         for position in draft.positions {
@@ -467,7 +479,7 @@ private struct PositionDraftEditor: View {
             TextField("Role title", text: $position.title)
             TextField("Organisation", text: $position.organisation)
             TextField("Location", text: $position.location)
-            TextField("Dates as shown", text: $position.dateText)
+            TextField("Dates as shown", text: dateText)
             Text("Achievement bullets")
                 .font(.rrCaption)
                 .foregroundStyle(BrandTheme.inkMuted)
@@ -500,6 +512,19 @@ private struct PositionDraftEditor: View {
                 position.bullets = value.components(separatedBy: .newlines)
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
+            }
+        )
+    }
+
+    private var dateText: Binding<String> {
+        Binding(
+            get: { position.dateText },
+            set: { value in
+                position.dateText = value
+                let parsed = ResumeIntakeService().parseDateRange(value)
+                position.startDate = parsed.start
+                position.endDate = parsed.end
+                position.isCurrent = parsed.isCurrent
             }
         )
     }

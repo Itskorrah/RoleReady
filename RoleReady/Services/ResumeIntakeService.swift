@@ -365,7 +365,7 @@ struct ResumeIntakeService: Sendable {
             .filter { !$0.isEmpty }
     }
 
-    private func parseDateRange(_ value: String) -> (start: Date?, end: Date?, isCurrent: Bool) {
+    func parseDateRange(_ value: String) -> (start: Date?, end: Date?, isCurrent: Bool) {
         let lower = value.lowercased()
         let years = allMatches(#"(?:19|20)\d{2}"#, in: value).compactMap(Int.init)
         let calendar = Calendar(identifier: .gregorian)
