@@ -73,7 +73,13 @@ struct SeedService {
                 quickCues: draft.quickCues,
                 sourceFields: draft.claims.map(\.sourceField),
                 sourceClaims: draft.claims.map {
-                    StoredAnswerClaim(sourceField: $0.sourceField, text: $0.text)
+                    StoredAnswerClaim(
+                        sourceField: $0.sourceField,
+                        text: $0.text,
+                        sourceText: $0.sourceText,
+                        origin: $0.origin,
+                        isSupported: $0.isSupported
+                    )
                 },
                 followUps: draft.followUps,
                 isFactConfirmed: true,

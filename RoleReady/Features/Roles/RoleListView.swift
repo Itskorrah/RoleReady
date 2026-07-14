@@ -62,7 +62,7 @@ struct RoleListView: View {
             if opportunities.isEmpty {
                 EmptyStatePanel(
                     title: "Bring your next role into focus",
-                    message: "Paste or import a job advertisement. RoleReady will turn it into a requirement map you can check before matching your evidence.",
+                    message: "Paste or import a job advertisement. RoleReady will find requirement themes you can check before comparing your examples.",
                     symbol: "briefcase.fill",
                     actionTitle: "Add your first role"
                 ) {
@@ -123,6 +123,8 @@ struct RoleListView: View {
                 }
             }
         }
+        .frame(maxWidth: 900)
+        .frame(maxWidth: .infinity)
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .environment(\.defaultMinListRowHeight, 1)

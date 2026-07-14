@@ -27,7 +27,7 @@ struct ImportedDocument: Hashable, Sendable {
     let warnings: [String]
 }
 
-struct DocumentImportService {
+struct DocumentImportService: Sendable {
     static var supportedContentTypes: [UTType] {
         [.pdf, .rtf, .plainText] + [UTType(filenameExtension: "docx")].compactMap { $0 }
     }
@@ -62,7 +62,7 @@ struct DocumentImportService {
         } else if url.pathExtension.caseInsensitiveCompare("docx") == .orderedSame {
             guard let attributed = try? NSAttributedString(
                 url: url,
-                options: [.documentType: NSAttributedString.DocumentType.officeOpenXML],
+                options: [:],
                 documentAttributes: nil
             ) else { throw DocumentImportError.unreadable }
             text = attributed.string

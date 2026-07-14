@@ -16,6 +16,22 @@ struct ParsedJob: Hashable, Sendable {
     var warnings: [String]
 }
 
+struct RequirementMetadata: Hashable, Sendable {
+    let keywords: [String]
+    let capabilities: [Capability]
+}
+
+struct RequirementMetadataService: Sendable {
+    private let analyzer = TextAnalyzer()
+
+    func analyse(_ confirmedText: String) -> RequirementMetadata {
+        RequirementMetadata(
+            keywords: analyzer.keywords(in: confirmedText, limit: 8),
+            capabilities: analyzer.inferCapabilities(from: confirmedText)
+        )
+    }
+}
+
 enum JobParserError: LocalizedError, Equatable, Sendable {
     case empty
     case tooShort
@@ -32,6 +48,7 @@ enum JobParserError: LocalizedError, Equatable, Sendable {
 
 struct JobParser {
     private let analyzer = TextAnalyzer()
+    private let metadataService = RequirementMetadataService()
     private let requirementSignals = [
         "must", "required", "essential", "experience in", "experience with", "demonstrated", "ability to", "responsible for",
         "you will", "you'll", "proficient", "knowledge of", "skills in", "capable of", "qualification", "key responsibilities"
@@ -85,12 +102,13 @@ struct JobParser {
         let requirements = candidates.compactMap { text, kind, importance -> ParsedRequirement? in
             let fingerprint = analyzer.tokens(in: text).prefix(10).joined(separator: " ")
             guard !fingerprint.isEmpty, seen.insert(fingerprint).inserted else { return nil }
+            let metadata = metadataService.analyse(text)
             return ParsedRequirement(
                 id: UUID(),
                 text: text,
                 kind: kind,
-                keywords: analyzer.keywords(in: text, limit: 8),
-                capabilities: analyzer.inferCapabilities(from: text),
+                keywords: metadata.keywords,
+                capabilities: metadata.capabilities,
                 importance: importance
             )
         }

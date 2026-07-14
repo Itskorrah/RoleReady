@@ -9,6 +9,7 @@ enum BrandTheme {
     static let surface = Color(lightHex: 0xFFFFFF, darkHex: 0x172232)
     static let surfaceMuted = Color(lightHex: 0xEEE9DE, darkHex: 0x202C3D)
     static let amber = Color(lightHex: 0xE89A2E, darkHex: 0xFFB94E)
+    static let onAmber = Color(lightHex: 0x142033, darkHex: 0x142033)
     static let amberText = Color(lightHex: 0x7A4A00, darkHex: 0xFFD083)
     static let amberSoft = Color(lightHex: 0xF8E5BF, darkHex: 0x49351C)
     static let violet = Color(lightHex: 0x6657D9, darkHex: 0x9B90FF)
@@ -17,7 +18,7 @@ enum BrandTheme {
     static let tealText = Color(lightHex: 0x00685E, darkHex: 0x7CE3D2)
     static let tealSoft = Color(lightHex: 0xDDF2EC, darkHex: 0x163C37)
     static let success = Color(lightHex: 0x267A50, darkHex: 0x65D493)
-    static let warning = Color(lightHex: 0xA96518, darkHex: 0xF7B35B)
+    static let warning = Color(lightHex: 0x884A0A, darkHex: 0xF7B35B)
     static let danger = Color(lightHex: 0xB54848, darkHex: 0xFF8B8B)
     static let separator = Color(lightHex: 0xDED8CC, darkHex: 0x2F3B4D)
 

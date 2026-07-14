@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct AppShell: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -17,6 +18,8 @@ struct AppShell: View {
         .privacySensitive()
         .sheet(item: $appState.presentedSheet) { destination in
             switch destination {
+            case .prepareForRole:
+                PreparationFlowView()
             case .addStory:
                 ExperienceEditorView()
             case .editStory(let id):
@@ -39,8 +42,10 @@ struct AppShell: View {
             }
         }
         .task(id: appState.toast?.id) {
-            guard appState.toast != nil else { return }
-            try? await Task.sleep(for: .seconds(2.4))
+            guard let toast = appState.toast else { return }
+            UIAccessibility.post(notification: .announcement, argument: toast.title)
+            let displaySeconds = UIAccessibility.isVoiceOverRunning ? 5.0 : 2.4
+            try? await Task.sleep(for: .seconds(displaySeconds))
             guard !Task.isCancelled else { return }
             withAnimation(reduceMotion ? nil : .snappy) { appState.toast = nil }
         }
@@ -73,9 +78,8 @@ private struct TabRoot: View {
     @ViewBuilder
     private var rootContent: some View {
         switch tab {
-        case .today: DashboardView()
-        case .evidence: EvidenceListView()
-        case .roles: RoleListView()
+        case .prepare: DashboardView()
+        case .examples: EvidenceListView()
         case .practise: PracticeHomeView()
         }
     }
@@ -98,6 +102,7 @@ private struct TabRoot: View {
             AnswerStudioView(answerID: answerID)
         case .prepDeck(let opportunityID): PrepDeckView(opportunityID: opportunityID)
         case .reflection(let opportunityID): InterviewReflectionView(opportunityID: opportunityID)
+        case .roles: RoleListView()
         case .profile: ProfileView()
         case .insights: InsightsView()
         case .settings: SettingsView()
@@ -111,6 +116,11 @@ private struct ComposeMenu: View {
 
     var body: some View {
         Menu {
+            Button {
+                appState.presentedSheet = .prepareForRole
+            } label: {
+                Label("Prepare for a role", systemImage: "target")
+            }
             Button {
                 appState.presentedSheet = .addStory
             } label: {
@@ -132,8 +142,8 @@ private struct ComposeMenu: View {
                 .frame(width: 44, height: 44)
                 .roleReadyGlass(cornerRadius: 22, tint: BrandTheme.amber, interactive: true)
         }
-        .accessibilityLabel("Add")
-        .accessibilityHint("Capture a story, role, or interview question")
+        .accessibilityLabel("Prepare or add")
+        .accessibilityHint("Prepare for a role, capture an example, or add a question")
         .accessibilityIdentifier("global-compose")
     }
 }

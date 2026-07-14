@@ -131,17 +131,19 @@ struct MatchTierBadge: View {
 
     private var colour: Color {
         switch tier {
-        case .strong: BrandTheme.success
-        case .promising: BrandTheme.warning
-        case .gap: BrandTheme.inkMuted
+        case .direct: BrandTheme.success
+        case .transferable: BrandTheme.tealText
+        case .weak: BrandTheme.warning
+        case .none: BrandTheme.inkMuted
         }
     }
 
     private var symbol: String {
         switch tier {
-        case .strong: "checkmark.seal.fill"
-        case .promising: "circle.lefthalf.filled"
-        case .gap: "circle.dashed"
+        case .direct: "checkmark.seal.fill"
+        case .transferable: "arrow.triangle.branch"
+        case .weak: "circle.lefthalf.filled"
+        case .none: "circle.dashed"
         }
     }
 }
@@ -228,14 +230,14 @@ struct PrimaryActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.rrHeadline)
-            .foregroundStyle(BrandTheme.ink)
+            .foregroundStyle(BrandTheme.onAmber)
             .frame(maxWidth: .infinity)
             .padding(.horizontal, RRSpacing.lg)
             .padding(.vertical, 14)
             .background(BrandTheme.amber.opacity(configuration.isPressed ? 0.76 : 1), in: RoundedRectangle(cornerRadius: RRRadius.medium, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: RRRadius.medium, style: .continuous)
-                    .stroke(BrandTheme.ink.opacity(0.72), lineWidth: 1.5)
+                    .stroke(BrandTheme.onAmber.opacity(0.72), lineWidth: 1.5)
             }
             .scaleEffect(configuration.isPressed && !reduceMotion ? 0.985 : 1)
             .animation(reduceMotion ? nil : .snappy(duration: 0.18), value: configuration.isPressed)

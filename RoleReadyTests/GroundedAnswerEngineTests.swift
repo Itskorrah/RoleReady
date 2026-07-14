@@ -104,6 +104,7 @@ final class GroundedAnswerEngineTests: XCTestCase {
         XCTAssertTrue(Set(draft.claims.map(\.sourceField)).isSuperset(of: [
             "Situation", "Responsibility", "Action", "Result", "Evidence", "Learning"
         ]))
-        XCTAssertFalse(draft.content.isEmpty)
+        XCTAssertTrue(draft.isWithinTarget, "Generated \(draft.wordCount) words")
+        XCTAssertTrue(draft.content.contains("\n\n"))
     }
 }

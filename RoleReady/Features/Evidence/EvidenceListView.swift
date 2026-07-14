@@ -57,11 +57,13 @@ struct EvidenceListView: View {
                 }
             }
         }
+        .frame(maxWidth: 900)
+        .frame(maxWidth: .infinity)
         .listStyle(.plain)
         .environment(\.defaultMinListRowHeight, 1)
         .scrollContentBackground(.hidden)
         .screenBackground()
-        .navigationTitle("Evidence")
+        .navigationTitle("My Examples")
         .searchable(
             text: $searchText,
             placement: .navigationBarDrawer(displayMode: .always),
@@ -101,7 +103,7 @@ struct EvidenceListView: View {
         if experiences.isEmpty {
             EmptyStatePanel(
                 title: "Start with one real story",
-                message: "Capture a project, achievement, difficult problem or lesson. RoleReady will help you turn it into reusable evidence.",
+                message: "Capture a project, achievement, difficult problem or lesson. RoleReady will help you turn it into a reusable example.",
                 symbol: "square.stack.3d.up",
                 actionTitle: "Add your first story"
             ) {
@@ -110,7 +112,7 @@ struct EvidenceListView: View {
             .accessibilityIdentifier("evidence.empty")
         } else if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             EmptyStatePanel(
-                title: "No matching evidence",
+                title: "No matching examples",
                 message: "Try an organisation, capability, tool, result or a broader phrase.",
                 symbol: "magnifyingglass",
                 actionTitle: "Clear search"
@@ -123,7 +125,7 @@ struct EvidenceListView: View {
                 title: "Nothing in this view",
                 message: scope.emptyMessage,
                 symbol: scope.symbol,
-                actionTitle: "Show all evidence"
+                actionTitle: "Show all examples"
             ) {
                 scope = .all
             }
@@ -160,7 +162,7 @@ private enum EvidenceListScope: String, CaseIterable, Identifiable {
 
     var emptyMessage: String {
         switch self {
-        case .all: "Add a story to begin building your evidence bank."
+        case .all: "Add a story to begin building your example library."
         case .ready: "No stories are ready yet. Open one to see the most useful next improvement."
         case .strengthen: "Every story in your bank is ready to use."
         case .unused: "You have already reused every story at least once."
@@ -204,7 +206,7 @@ private struct EvidenceLibraryOverview: View {
         VStack(alignment: .leading, spacing: RRSpacing.md) {
             SectionHeading(
                 title: "Your reusable proof",
-                eyebrow: "Evidence bank"
+                eyebrow: "Example library"
             )
 
             Text("Search what you have done, strengthen the missing detail, then reuse only the facts you approve.")
@@ -307,7 +309,7 @@ private struct EvidenceRow: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
-        .accessibilityHint("Opens the evidence story")
+        .accessibilityHint("Opens the saved example")
         .accessibilityIdentifier("evidence.row.\(experience.id.uuidString)")
     }
 

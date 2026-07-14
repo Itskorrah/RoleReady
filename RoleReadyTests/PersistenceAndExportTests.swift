@@ -31,7 +31,7 @@ final class PersistenceAndExportTests: XCTestCase {
         let export = try decoder.decode(RoleReadyExport.self, from: data)
 
         XCTAssertEqual(export.identifier, RoleReadyExport.formatIdentifier)
-        XCTAssertEqual(export.version, 1)
+        XCTAssertEqual(export.version, RoleReadyExport.formatVersion)
         XCTAssertEqual(export.experiences.map(\.title), ["Standard story"])
         XCTAssertFalse(export.includesConfidential)
     }
@@ -233,6 +233,13 @@ final class PersistenceAndExportTests: XCTestCase {
             content: "A grounded answer.",
             quickCues: ["Problem", "Action", "42 records"],
             sourceFields: ["Situation", "Action", "Result"],
+            sourceClaims: [
+                StoredAnswerClaim(
+                    sourceField: "Result",
+                    text: experience.result,
+                    sourceText: experience.result
+                )
+            ],
             followUps: [],
             isFactConfirmed: true,
             sourceExperienceUpdatedAt: experience.updatedAt
@@ -277,6 +284,13 @@ final class PersistenceAndExportTests: XCTestCase {
             content: "A grounded answer.",
             quickCues: ["Reliability"],
             sourceFields: ["Action", "Result"],
+            sourceClaims: [
+                StoredAnswerClaim(
+                    sourceField: "Action",
+                    text: experience.actions[0],
+                    sourceText: experience.actions[0]
+                )
+            ],
             followUps: [],
             isFactConfirmed: true,
             sourceExperienceUpdatedAt: revision,

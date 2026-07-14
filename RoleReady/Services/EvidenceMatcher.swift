@@ -1,16 +1,22 @@
 import Foundation
 
-enum MatchTier: String {
-    case strong
-    case promising
-    case gap
+enum MatchTier: String, Codable, Sendable {
+    case direct
+    case transferable
+    case weak
+    case none
 
     var title: String {
         switch self {
-        case .strong: "Strong proof"
-        case .promising: "Could support"
-        case .gap: "Evidence gap"
+        case .direct: "Direct evidence"
+        case .transferable: "Transferable"
+        case .weak: "Weak or partial"
+        case .none: "No verified evidence"
         }
+    }
+
+    var allowsAnswer: Bool {
+        self == .direct || self == .transferable
     }
 }
 
@@ -40,12 +46,20 @@ struct EvidenceMatcher {
     private let analyzer = TextAnalyzer()
     private let scorer = EvidenceScorer()
 
-    func rank(requirement: JobRequirement, against experiences: [Experience], now: Date = Date()) -> [EvidenceMatch] {
-        let requirementTerms = Set(analyzer.tokens(in: requirement.text + " " + requirement.keywords.joined(separator: " ")))
+    func rank(
+        requirement: JobRequirement,
+        against experiences: [Experience],
+        now: Date = Date(),
+        explicitlyApprovedSensitiveExperienceIDs: Set<UUID> = []
+    ) -> [EvidenceMatch] {
+        let requirementSource = requirement.text + " " + requirement.keywords.joined(separator: " ")
+        let requirementTerms = Set(analyzer.tokens(in: requirementSource))
         let inferredCapabilities = Set(requirement.capabilities.isEmpty ? analyzer.inferCapabilities(from: requirement.text) : requirement.capabilities)
 
         return experiences.compactMap { experience -> EvidenceMatch? in
-            guard experience.isApprovedForMatching, !experience.confidentiality.blocksAutomaticUse else { return nil }
+            guard experience.isApprovedForMatching else { return nil }
+            guard !experience.confidentiality.blocksAutomaticUse
+                    || explicitlyApprovedSensitiveExperienceIDs.contains(experience.id) else { return nil }
             let weightedText = [
                 experience.actions.joined(separator: " "),
                 experience.actions.joined(separator: " "),
@@ -58,15 +72,17 @@ struct EvidenceMatcher {
             ].joined(separator: " ")
             let experienceTerms = Set(analyzer.tokens(in: weightedText))
             let overlap = requirementTerms.intersection(experienceTerms).sorted()
+            let displayOverlap = readableTerms(for: overlap, in: requirementSource)
             let unionCount = max(requirementTerms.union(experienceTerms).count, 1)
             let lexical = (
                 min(Double(overlap.count) / Double(max(min(requirementTerms.count, 10), 1)) * 1.4, 1) * 0.8
                     + Double(overlap.count) / Double(unionCount) * 0.2
             )
             let capabilityMatches = inferredCapabilities.intersection(Set(experience.capabilities)).sorted { $0.title < $1.title }
-            let capability = inferredCapabilities.isEmpty ? 0.45 : Double(capabilityMatches.count) / Double(inferredCapabilities.count)
+            let capability = inferredCapabilities.isEmpty ? 0 : Double(capabilityMatches.count) / Double(inferredCapabilities.count)
             let toolTokens = Set(experience.tools.flatMap { analyzer.tokens(in: $0) })
-            let tools = requirementTerms.isEmpty ? 0 : min(Double(requirementTerms.intersection(toolTokens).count) / 2, 1)
+            let matchedToolTerms = requirementTerms.intersection(toolTokens)
+            let tools = requirementTerms.isEmpty ? 0 : min(Double(matchedToolTerms.count) / 2, 1)
             let readiness = Double(scorer.score(experience).total) / 100
             let years = max(now.timeIntervalSince(experience.occurredAt) / 31_557_600, 0)
             let recency = max(0.45, 1 - min(years, 8) * 0.07)
@@ -84,8 +100,25 @@ struct EvidenceMatcher {
                 recency: recency,
                 ownership: ownership
             )
-            let score = lexical * 0.40 + capability * 0.20 + tools * 0.12 + readiness * 0.16 + recency * 0.06 + ownership * 0.06
-            let tier: MatchTier = score >= 0.62 ? .strong : (score >= 0.34 ? .promising : .gap)
+            let rawScore = lexical * 0.40 + capability * 0.20 + tools * 0.12 + readiness * 0.16 + recency * 0.06 + ownership * 0.06
+            let hasLexicalSignal = overlap.count >= 2 || lexical >= 0.2
+            let hasStrongLexicalSignal = overlap.count >= 3 || (overlap.count >= 2 && lexical >= 0.35)
+            let hasCapabilitySignal = !capabilityMatches.isEmpty
+            let hasToolSignal = !matchedToolTerms.isEmpty
+            let hasRelevantSignal = hasLexicalSignal || hasCapabilitySignal || hasToolSignal
+            let score = hasRelevantSignal ? rawScore : 0
+            let tier: MatchTier
+            if !hasRelevantSignal {
+                tier = .none
+            } else if capability >= 0.66,
+                      score >= 0.56,
+                      hasStrongLexicalSignal || (hasLexicalSignal && hasToolSignal) {
+                tier = .direct
+            } else if hasCapabilitySignal, (hasLexicalSignal || hasToolSignal || capability >= 0.5), score >= 0.36 {
+                tier = .transferable
+            } else {
+                tier = .weak
+            }
             var cautions: [String] = []
             let evidenceScore = scorer.score(experience)
             if evidenceScore.total < 56 { cautions.append("Strengthen this story before relying on it in an interview.") }
@@ -95,9 +128,10 @@ struct EvidenceMatcher {
 
             let explanation = explanation(
                 title: experience.title,
-                overlap: overlap,
+                overlap: displayOverlap,
                 capabilities: capabilityMatches,
-                readiness: evidenceScore.readiness
+                readiness: evidenceScore.readiness,
+                tier: tier
             )
             return EvidenceMatch(
                 id: experience.id,
@@ -105,7 +139,7 @@ struct EvidenceMatcher {
                 experienceID: experience.id,
                 score: score,
                 tier: tier,
-                matchedTerms: overlap,
+                matchedTerms: displayOverlap,
                 matchedCapabilities: capabilityMatches,
                 factors: factors,
                 explanation: explanation,
@@ -118,16 +152,35 @@ struct EvidenceMatcher {
         }
     }
 
+    private func readableTerms(for stems: [String], in source: String) -> [String] {
+        let stemSet = Set(stems)
+        var seen: Set<String> = []
+        return analyzer.surfaceTokens(in: source).compactMap { surface in
+            guard let stem = analyzer.tokens(in: surface, includeStopWords: true).first,
+                  stemSet.contains(stem),
+                  seen.insert(stem).inserted else { return nil }
+            return surface
+        }
+    }
+
     private func explanation(
         title: String,
         overlap: [String],
         capabilities: [Capability],
-        readiness: EvidenceReadiness
+        readiness: EvidenceReadiness,
+        tier: MatchTier
     ) -> String {
         let terms = overlap.prefix(4).joined(separator: ", ")
         let capabilityText = capabilities.prefix(2).map(\.title).joined(separator: " and ")
+        if tier == .none {
+            return "No verified detail in “\(title)” directly supports this requirement. Keep the gap visible or add a real example."
+        }
+        if tier == .weak {
+            return "“\(title)” shares limited wording, but it does not yet contain enough verified detail to rely on for this requirement."
+        }
         if !terms.isEmpty, !capabilityText.isEmpty {
-            return "“\(title)” matches \(capabilityText.lowercased()) and shares specific evidence around \(terms). The story is \(readiness.title.lowercased())."
+            let fit = tier == .direct ? "directly supports" : "can transfer to"
+            return "“\(title)” \(fit) \(capabilityText.lowercased()) and shares verified detail around \(terms). The example is \(readiness.title.lowercased())."
         }
         if !capabilityText.isEmpty {
             return "“\(title)” demonstrates \(capabilityText.lowercased()), although the wording has limited direct overlap with this requirement."
@@ -135,6 +188,6 @@ struct EvidenceMatcher {
         if !terms.isEmpty {
             return "“\(title)” shares specific terms—\(terms)—but the capability fit needs your review."
         }
-        return "No direct evidence link was found. Keep this as a gap or choose a story manually."
+        return "Only a limited wording link was found. Review it as partial evidence, not proof."
     }
 }

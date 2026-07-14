@@ -2,27 +2,24 @@ import Foundation
 import SwiftUI
 
 enum AppTab: String, CaseIterable, Identifiable, Codable, Sendable {
-    case today
-    case evidence
-    case roles
+    case prepare
+    case examples
     case practise
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .today: "Today"
-        case .evidence: "Evidence"
-        case .roles: "Roles"
+        case .prepare: "Prepare"
+        case .examples: "My Examples"
         case .practise: "Practise"
         }
     }
 
     var symbol: String {
         switch self {
-        case .today: "sparkles"
-        case .evidence: "square.stack.3d.up.fill"
-        case .roles: "briefcase.fill"
+        case .prepare: "target"
+        case .examples: "square.stack.3d.up.fill"
         case .practise: "quote.bubble.fill"
         }
     }
@@ -253,12 +250,12 @@ enum AnswerFormat: String, CaseIterable, Identifiable, Codable, Sendable {
         switch self {
         case .quickPrompt: 8...45
         case .thirtySeconds: 55...90
-        case .sixtySeconds: 110...165
+        case .sixtySeconds: 105...145
         case .ninetySeconds: 165...240
         case .writtenSTAR: 220...420
         case .resumeBullet: 16...42
         case .coverLetter: 70...140
-        case .selectionCriteria: 180...360
+        case .selectionCriteria: 150...360
         }
     }
 }

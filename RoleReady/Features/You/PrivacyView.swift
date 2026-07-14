@@ -25,7 +25,7 @@ struct PrivacyView: View {
                 )
 
                 privacySection(
-                    title: "What RoleReady does not collect",
+                    title: "What RoleReady never sends to a server",
                     symbol: "nosign",
                     colour: BrandTheme.success,
                     points: [

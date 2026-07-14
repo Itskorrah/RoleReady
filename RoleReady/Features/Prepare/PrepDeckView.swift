@@ -21,6 +21,7 @@ struct PrepDeckView: View {
     @State private var isComplete = false
     @State private var strongCount = 0
     @State private var retryCount = 0
+    @AccessibilityFocusState private var cuesHeadingFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -73,7 +74,7 @@ struct PrepDeckView: View {
     private var answers: [GeneratedAnswer] {
         let sources = Dictionary(uniqueKeysWithValues: experiences.map { ($0.id, $0) })
         let roles = Dictionary(uniqueKeysWithValues: opportunities.map { ($0.id, $0) })
-        allAnswers.filter { answer in
+        return allAnswers.filter { answer in
             answer.isApprovalCurrent(
                 for: sources[answer.experienceID],
                 opportunity: answer.opportunityID.flatMap { roles[$0] }
@@ -130,6 +131,8 @@ struct PrepDeckView: View {
                         .font(.rrCaption)
                         .tracking(0.8)
                         .foregroundStyle(BrandTheme.amberText)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($cuesHeadingFocused)
                     ForEach(Array(answer.quickCues.enumerated()), id: \.offset) { index, cue in
                         HStack(alignment: .firstTextBaseline, spacing: RRSpacing.sm) {
                             Text("\(index + 1)")
@@ -162,6 +165,10 @@ struct PrepDeckView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button {
                     withAnimation(reduceMotion ? nil : .snappy) { isRevealed = true }
+                    Task { @MainActor in
+                        await Task.yield()
+                        cuesHeadingFocused = true
+                    }
                 } label: {
                     Label("Reveal memory cues", systemImage: "eye.fill")
                 }
@@ -347,7 +354,7 @@ private enum AnyRRButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.rrHeadline)
-            .foregroundStyle(BrandTheme.ink)
+            .foregroundStyle(self == .primary ? BrandTheme.onAmber : BrandTheme.ink)
             .padding(.horizontal, RRSpacing.md)
             .padding(.vertical, 13)
             .background(

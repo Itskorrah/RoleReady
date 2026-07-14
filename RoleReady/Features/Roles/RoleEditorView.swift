@@ -190,7 +190,7 @@ struct RoleEditorView: View {
                         HStack {
                             if isAnalysing {
                                 ProgressView()
-                                    .tint(BrandTheme.ink)
+                                    .tint(BrandTheme.onAmber)
                             } else {
                                 Image(systemName: "wand.and.stars")
                             }
@@ -313,7 +313,7 @@ struct RoleEditorView: View {
                     HStack {
                         if isSaving {
                             ProgressView()
-                                .tint(BrandTheme.ink)
+                                .tint(BrandTheme.onAmber)
                         } else {
                             Image(systemName: "checkmark.circle.fill")
                         }
@@ -336,6 +336,7 @@ struct RoleEditorView: View {
         HStack(spacing: RRSpacing.sm) {
             Image(systemName: "checkmark.seal.fill")
                 .foregroundStyle(BrandTheme.success)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: RRSpacing.xxs) {
                 Text("You stay in control")
                     .font(.rrHeadline)
@@ -343,6 +344,7 @@ struct RoleEditorView: View {
                     .font(.rrCaption)
                     .foregroundStyle(BrandTheme.inkMuted)
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
             Button {
                 focusedField = nil
@@ -361,7 +363,7 @@ struct RoleEditorView: View {
         }
         .padding(RRSpacing.md)
         .background(BrandTheme.tealSoft, in: RoundedRectangle(cornerRadius: RRRadius.medium, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     private var roleDetailsCard: some View {

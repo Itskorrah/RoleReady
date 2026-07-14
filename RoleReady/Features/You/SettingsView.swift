@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
@@ -14,6 +15,9 @@ struct SettingsView: View {
     @State private var errorMessage: String?
     @State private var showDeleteConfirmation = false
     @State private var showRemoveSampleConfirmation = false
+    @State private var isRestoreImporterPresented = false
+    @State private var isReadingRestore = false
+    @State private var restoreCandidate: RestoreImportCandidate?
 
     var body: some View {
         @Bindable var appState = appState
@@ -71,6 +75,30 @@ struct SettingsView: View {
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
                 }
+
+                Button {
+                    isRestoreImporterPresented = true
+                } label: {
+                    SettingsRow(
+                        title: isReadingRestore ? "Checking export…" : "Restore from JSON export",
+                        detail: "Preview first, then add new records safely",
+                        symbol: "arrow.up.doc.fill",
+                        colour: BrandTheme.success
+                    )
+                }
+                .disabled(isReadingRestore)
+                .accessibilityIdentifier("settings.restore.button")
+
+                if isReadingRestore {
+                    HStack(spacing: RRSpacing.sm) {
+                        ProgressView()
+                        Text("Validating without changing your workspace…")
+                            .font(.rrCaption)
+                            .foregroundStyle(BrandTheme.inkMuted)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("settings.restore.loading")
+                }
             } header: {
                 Text("Your data")
             } footer: {
@@ -115,6 +143,19 @@ struct SettingsView: View {
         .screenBackground()
         .onChange(of: includeConfidential) { _, _ in
             clearPreparedExport()
+        }
+        .onDisappear {
+            clearPreparedExport()
+        }
+        .fileImporter(
+            isPresented: $isRestoreImporterPresented,
+            allowedContentTypes: [.json],
+            onCompletion: handleRestoreImportResult
+        )
+        .sheet(item: $restoreCandidate) { candidate in
+            WorkspaceRestorePreviewSheet(candidate: candidate) {
+                clearPreparedExport()
+            }
         }
         .confirmationDialog("Remove the sample workspace?", isPresented: $showRemoveSampleConfirmation, titleVisibility: .visible) {
             Button("Remove sample data", role: .destructive, action: removeSample)
@@ -197,6 +238,32 @@ struct SettingsView: View {
         }
     }
 
+    private func handleRestoreImportResult(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            Task { @MainActor in
+                isReadingRestore = true
+                defer { isReadingRestore = false }
+                do {
+                    let data = try await Task.detached(priority: .userInitiated) {
+                        try RestoreDocumentReader().readData(from: url)
+                    }.value
+                    try Task.checkCancellation()
+                    let preview = try WorkspaceRestoreService().preview(data, in: modelContext)
+                    restoreCandidate = RestoreImportCandidate(data: data, preview: preview)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    errorMessage = workspaceRestoreMessage(for: error)
+                }
+            }
+        case .failure(let error):
+            if (error as NSError).code != NSUserCancelledError {
+                errorMessage = workspaceRestoreMessage(for: error)
+            }
+        }
+    }
+
     private func removeSample() {
         do {
             clearPreparedExport()
@@ -245,6 +312,275 @@ struct SettingsView: View {
         exportURL = nil
         preparedIncludesConfidential = nil
     }
+}
+
+private struct RestoreImportCandidate: Identifiable {
+    let id = UUID()
+    let data: Data
+    let preview: WorkspaceRestorePreview
+}
+
+private struct WorkspaceRestorePreviewSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Environment(AppState.self) private var appState
+
+    let candidate: RestoreImportCandidate
+    let onRestoreCompleted: () -> Void
+
+    @State private var isRestoring = false
+    @State private var showRestoreConfirmation = false
+    @State private var result: WorkspaceRestoreResult?
+    @State private var errorMessage: String?
+    @AccessibilityFocusState private var statusIsFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let result {
+                    successContent(result)
+                } else {
+                    previewContent
+                }
+            }
+            .navigationTitle(result == nil ? "Restore preview" : "Restore complete")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(result == nil ? "Cancel" : "Done") { dismiss() }
+                        .disabled(isRestoring)
+                }
+            }
+            .screenBackground()
+        }
+        .interactiveDismissDisabled(isRestoring)
+        .onChange(of: errorMessage) { _, value in
+            if value != nil { statusIsFocused = true }
+        }
+        .onChange(of: result) { _, value in
+            if value != nil { statusIsFocused = true }
+        }
+        .confirmationDialog(
+            "Add these records to RoleReady?",
+            isPresented: $showRestoreConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Restore \(candidate.preview.importable.total) items") {
+                restore()
+            }
+            .accessibilityIdentifier("restore.confirm")
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This is add-only. Existing records stay in place, matching IDs are skipped, and only an empty starter profile may be filled.")
+        }
+        .accessibilityIdentifier("restore.preview")
+    }
+
+    private var previewContent: some View {
+        Form {
+            Section {
+                Label {
+                    VStack(alignment: .leading, spacing: RRSpacing.xxs) {
+                        Text("Ready to review")
+                            .font(.rrHeadline)
+                            .foregroundStyle(BrandTheme.ink)
+                        Text("No changes have been made yet.")
+                            .font(.rrCaption)
+                            .foregroundStyle(BrandTheme.inkMuted)
+                    }
+                } icon: {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.title2)
+                        .foregroundStyle(BrandTheme.success)
+                }
+
+                LabeledContent("Created", value: candidate.preview.createdAt.formatted(date: .abbreviated, time: .shortened))
+                LabeledContent("Export format", value: "Version \(candidate.preview.sourceVersion)")
+                LabeledContent(
+                    "Data level",
+                    value: candidate.preview.includesConfidential ? "Full export" : "Reduced sensitivity"
+                )
+            }
+
+            RestoreCountSection(title: "Items to restore", counts: candidate.preview.importable)
+
+            if candidate.preview.duplicates.total > 0 {
+                RestoreCountSection(title: "Already present or repeated", counts: candidate.preview.duplicates)
+            }
+
+            if candidate.preview.rejected.total > 0 {
+                RestoreCountSection(title: "Invalid records to skip", counts: candidate.preview.rejected)
+            }
+
+            if !candidate.preview.warnings.isEmpty || errorMessage != nil {
+                Section("Before restoring") {
+                    if let errorMessage {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(BrandTheme.danger)
+                            .accessibilityFocused($statusIsFocused)
+                            .accessibilityIdentifier("restore.error")
+                    }
+                    ForEach(candidate.preview.warnings, id: \.self) { warning in
+                        Label(warning, systemImage: "info.circle.fill")
+                            .foregroundStyle(BrandTheme.inkMuted)
+                    }
+                }
+            }
+
+            Section {
+                Button {
+                    showRestoreConfirmation = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        if isRestoring {
+                            ProgressView()
+                                .tint(BrandTheme.onAmber)
+                        }
+                        Text(isRestoring ? "Restoring…" : restoreButtonTitle)
+                            .font(.rrHeadline)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(PrimaryActionButtonStyle())
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                .disabled(isRestoring || candidate.preview.importable.total == 0)
+                .accessibilityIdentifier("restore.preview.restore")
+            } footer: {
+                Text("RoleReady adds valid new records and may fill an empty starter profile. It never replaces information you entered or deletes records during restore.")
+            }
+        }
+        .scrollContentBackground(.hidden)
+    }
+
+    private func successContent(_ result: WorkspaceRestoreResult) -> some View {
+        ScrollView {
+            VStack(spacing: RRSpacing.lg) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 56))
+                    .foregroundStyle(BrandTheme.success)
+                    .accessibilityHidden(true)
+
+                VStack(spacing: RRSpacing.xs) {
+                    Text("Your workspace was restored")
+                        .font(.rrTitle)
+                        .foregroundStyle(BrandTheme.ink)
+                        .multilineTextAlignment(.center)
+                        .accessibilityFocused($statusIsFocused)
+                    Text("\(result.restored.total) item\(result.restored.total == 1 ? "" : "s") restored. Existing career information you entered was left unchanged.")
+                        .font(.rrBody)
+                        .foregroundStyle(BrandTheme.inkMuted)
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(spacing: RRSpacing.sm) {
+                    RestoreSummaryRow(title: "Restored", value: result.restored.total, symbol: "plus.circle.fill", colour: BrandTheme.success)
+                    RestoreSummaryRow(title: "Existing or repeated", value: result.skippedDuplicates, symbol: "equal.circle.fill", colour: BrandTheme.violet)
+                    RestoreSummaryRow(title: "Invalid and skipped", value: result.rejectedRecords, symbol: "exclamationmark.circle.fill", colour: BrandTheme.warning)
+                }
+                .cardSurface()
+
+            }
+            .padding(RRSpacing.xl)
+            .frame(maxWidth: 620)
+            .frame(maxWidth: .infinity)
+        }
+        .accessibilityIdentifier("restore.success")
+    }
+
+    private var restoreButtonTitle: String {
+        let count = candidate.preview.importable.total
+        return count == 0 ? "No new items to restore" : "Restore \(count) item\(count == 1 ? "" : "s")"
+    }
+
+    private func restore() {
+        guard !isRestoring else { return }
+        isRestoring = true
+        errorMessage = nil
+
+        Task { @MainActor in
+            defer { isRestoring = false }
+            do {
+                let restoreResult = try WorkspaceRestoreService().restore(candidate.data, in: modelContext)
+                result = restoreResult
+                onRestoreCompleted()
+                refreshSampleWorkspaceState()
+                appState.showToast("Workspace restored", symbol: "checkmark.shield.fill")
+            } catch {
+                errorMessage = workspaceRestoreMessage(for: error)
+            }
+        }
+    }
+
+    private func refreshSampleWorkspaceState() {
+        let hasSampleProfile = (try? modelContext.fetch(FetchDescriptor<CareerProfile>()))?.contains(where: \.isSample) == true
+        let hasSampleExperience = (try? modelContext.fetch(FetchDescriptor<Experience>()))?.contains(where: \.isSample) == true
+        let hasSampleOpportunity = (try? modelContext.fetch(FetchDescriptor<Opportunity>()))?.contains(where: \.isSample) == true
+        appState.isUsingSampleWorkspace = hasSampleProfile || hasSampleExperience || hasSampleOpportunity
+    }
+}
+
+private struct RestoreCountSection: View {
+    let title: String
+    let counts: RestoreRecordCounts
+
+    var body: some View {
+        Section(title) {
+            if rows.isEmpty {
+                Text("None")
+                    .foregroundStyle(BrandTheme.inkMuted)
+            } else {
+                ForEach(rows) { row in
+                    LabeledContent(row.title, value: row.value.formatted())
+                }
+            }
+        }
+    }
+
+    private var rows: [RestoreCountRow] {
+        [
+            RestoreCountRow(title: "Profile", value: counts.profiles),
+            RestoreCountRow(title: "Examples", value: counts.experiences),
+            RestoreCountRow(title: "Roles", value: counts.opportunities),
+            RestoreCountRow(title: "Requirements", value: counts.requirements),
+            RestoreCountRow(title: "Answers", value: counts.answers),
+            RestoreCountRow(title: "Practice sessions", value: counts.practiceSessions),
+            RestoreCountRow(title: "Interview reflections", value: counts.reflections)
+        ].filter { $0.value > 0 }
+    }
+}
+
+private struct RestoreCountRow: Identifiable {
+    var id: String { title }
+    let title: String
+    let value: Int
+}
+
+private struct RestoreSummaryRow: View {
+    let title: String
+    let value: Int
+    let symbol: String
+    let colour: Color
+
+    var body: some View {
+        HStack {
+            Label(title, systemImage: symbol)
+                .foregroundStyle(BrandTheme.ink)
+            Spacer()
+            Text(value.formatted())
+                .font(.rrHeadline)
+                .foregroundStyle(colour)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private func workspaceRestoreMessage(for error: Error) -> String {
+    if let restoreError = error as? WorkspaceRestoreError {
+        return restoreError.localizedDescription
+    }
+    return "RoleReady couldn’t restore that export. Your current workspace was not changed. Try exporting it again."
 }
 
 private struct SettingsRow: View {

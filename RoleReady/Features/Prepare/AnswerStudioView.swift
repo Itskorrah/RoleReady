@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
 import UIKit
 
 struct AnswerStudioView: View {
@@ -28,24 +29,40 @@ struct AnswerStudioView: View {
     @State private var isSaving = false
     @State private var pendingConfirmation: AnswerStudioConfirmation?
     @State private var baselineSnapshot: AnswerEditSnapshot?
+    @State private var reconciledClaims: [AnswerClaim] = []
+    @State private var sourceOverrides: [String: AnswerSourceField] = [:]
+    @State private var answerWasUserEdited = false
 
     private let showsCloseButton: Bool
     private let answerID: UUID?
+    private let dismissAfterSave: Bool
+    private let onBack: (() -> Void)?
+    private let onSaved: ((UUID, Bool) -> Void)?
 
     private let engine = GroundedAnswerEngine()
+    private let provenanceService = AnswerProvenanceService()
+    private let approvalService = AnswerApprovalService()
 
     init(
         answerID: UUID? = nil,
         experienceID: UUID? = nil,
         opportunityID: UUID? = nil,
         initialQuestion: String? = nil,
-        showsCloseButton: Bool = false
+        initialFormat: AnswerFormat = .sixtySeconds,
+        showsCloseButton: Bool = false,
+        dismissAfterSave: Bool = true,
+        onBack: (() -> Void)? = nil,
+        onSaved: ((UUID, Bool) -> Void)? = nil
     ) {
         self.answerID = answerID
         _selectedExperienceID = State(initialValue: experienceID)
         _selectedOpportunityID = State(initialValue: opportunityID)
         _question = State(initialValue: initialQuestion ?? "")
+        _format = State(initialValue: initialFormat)
         self.showsCloseButton = showsCloseButton
+        self.dismissAfterSave = dismissAfterSave
+        self.onBack = onBack
+        self.onSaved = onSaved
     }
 
     var body: some View {
@@ -114,12 +131,20 @@ struct AnswerStudioView: View {
             if factsConfirmed, newContent != approvedContent {
                 factsConfirmed = false
             }
+            reconcileEditedClaims()
         }
         .onChange(of: factsConfirmed) { _, isConfirmed in
             if isConfirmed { approvedContent = editedContent }
         }
         .sheet(item: $selectedClaim) { claim in
-            SourceClaimSheet(claim: claim, experience: selectedExperience)
+            SourceClaimSheet(
+                claim: claim,
+                experience: selectedExperience,
+                availableSources: selectedExperience.map { provenanceService.availableSources(for: $0) } ?? [],
+                onConnect: { field in
+                    connect(claim, to: field)
+                }
+            )
         }
         .alert("Answer Studio", isPresented: Binding(
             get: { errorMessage != nil },
@@ -216,12 +241,19 @@ struct AnswerStudioView: View {
     }
 
     private func answerDraft(_ draft: GeneratedDraft) -> some View {
+        let decision = currentApprovalDecision
         let activeWarnings = reviewWarnings(for: draft)
-        let wordCount = editedContent.split(whereSeparator: \.isWhitespace).count
+        let policyIssues = decision?.issues ?? ["Choose an available source example before approval."]
+        let advisoryWarnings = activeWarnings.filter { !policyIssues.contains($0) }
+        let wordCount = decision?.wordCount ?? editedContent.split(whereSeparator: \.isWhitespace).count
+        let unsupportedCount = reconciledClaims.filter(\.needsSource).count
 
         return VStack(alignment: .leading, spacing: RRSpacing.lg) {
             HStack(alignment: .firstTextBaseline) {
-                SectionHeading(title: "Suggested phrasing", eyebrow: "\(wordCount) WORDS")
+                SectionHeading(
+                    title: "Suggested phrasing",
+                    eyebrow: "\(wordCount) WORDS · ABOUT \(decision?.estimatedSpeakingSeconds ?? 0) SEC"
+                )
                 Spacer()
                 Label(factsConfirmed ? "Ready" : "Draft", systemImage: factsConfirmed ? "checkmark.seal.fill" : "pencil.circle")
                     .font(.rrCaption)
@@ -239,13 +271,19 @@ struct AnswerStudioView: View {
 
                 Divider()
                 HStack {
-                    Label("Generated from \(draft.claims.count) source clauses", systemImage: "link")
+                    Label("\(reconciledClaims.count) clauses checked against source", systemImage: "link")
                         .font(.rrCaption)
                         .foregroundStyle(BrandTheme.inkMuted)
                     Spacer()
                     Button {
-                        UIPasteboard.general.string = editedContent
-                        appState.showToast("Answer copied", symbol: "doc.on.doc.fill")
+                        UIPasteboard.general.setItems(
+                            [[UTType.utf8PlainText.identifier: editedContent]],
+                            options: [
+                                .localOnly: true,
+                                .expirationDate: Date().addingTimeInterval(10 * 60)
+                            ]
+                        )
+                        appState.showToast("Copied locally for 10 minutes", symbol: "doc.on.doc.fill")
                     } label: {
                         Label("Copy", systemImage: "doc.on.doc")
                     }
@@ -256,9 +294,11 @@ struct AnswerStudioView: View {
 
             if editedContent != draft.content {
                 InfoBanner(
-                    title: "User-edited wording",
-                    message: "Your changes are saved exactly as written. Reconfirm the facts after every edit, and use the source trail to check any new claim.",
-                    kind: .information
+                    title: unsupportedCount == 0 ? "Edited wording rechecked" : "\(unsupportedCount) edited clause\(unsupportedCount == 1 ? "" : "s") need a source",
+                    message: unsupportedCount == 0
+                        ? "Your wording is still connected to the evidence shown below. Approval was revoked so you can review it again."
+                        : "RoleReady will save your wording as a draft, but it cannot call unsupported additions verified. Connect each marked clause to evidence, rewrite it, or remove it.",
+                    kind: unsupportedCount == 0 ? .information : .warning
                 )
             }
 
@@ -282,28 +322,37 @@ struct AnswerStudioView: View {
                 }
             }
 
-            sourceTrail(draft)
+            sourceTrail
 
-            if !activeWarnings.isEmpty {
+            if !policyIssues.isEmpty {
                 VStack(spacing: RRSpacing.sm) {
-                    ForEach(activeWarnings, id: \.self) { warning in
-                        InfoBanner(title: "Review before approval", message: warning, kind: .warning)
+                    ForEach(policyIssues, id: \.self) { issue in
+                        InfoBanner(title: "Needed before approval", message: issue, kind: .warning)
+                    }
+                }
+            }
+
+            if !advisoryWarnings.isEmpty {
+                VStack(spacing: RRSpacing.sm) {
+                    ForEach(advisoryWarnings, id: \.self) { warning in
+                        InfoBanner(title: "Privacy reminder", message: warning, kind: .information)
                     }
                 }
             }
 
             VStack(alignment: .leading, spacing: RRSpacing.md) {
-                Toggle(isOn: $factsConfirmed) {
+                Toggle(isOn: approvalBinding) {
                     VStack(alignment: .leading, spacing: RRSpacing.xxs) {
-                        Text("I confirm these facts and ownership")
+                        Text("I approve this grounded answer")
                             .font(.rrHeadline)
-                        Text("Approved answers can appear in your practice deck.")
+                        Text("I have checked the facts, numbers and my level of ownership. Approved answers can appear in practice.")
                             .font(.subheadline)
                             .foregroundStyle(BrandTheme.inkMuted)
                     }
                 }
                 .tint(BrandTheme.success)
-                .disabled(hasBlockingWarning(activeWarnings) || isDraftOutdated)
+                .disabled(decision?.canApprove != true || isDraftOutdated)
+                .accessibilityHint(policyIssues.first ?? "Approves this answer for practice")
                 .accessibilityIdentifier("confirm-answer-facts")
 
                 Button {
@@ -332,33 +381,49 @@ struct AnswerStudioView: View {
         )
     }
 
-    private func sourceTrail(_ draft: GeneratedDraft) -> some View {
+    private var sourceTrail: some View {
         VStack(alignment: .leading, spacing: RRSpacing.sm) {
-            SectionHeading(title: "Source trail", eyebrow: "TAP TO VERIFY")
-            ForEach(draft.claims) { claim in
+            SectionHeading(title: "Where each claim came from", eyebrow: "TAP TO CHECK")
+            ForEach(reconciledClaims) { claim in
                 Button {
                     selectedClaim = claim
                 } label: {
-                    HStack(alignment: .top, spacing: RRSpacing.sm) {
-                        Text(claim.sourceField.uppercased())
-                            .font(.caption2.bold())
-                            .foregroundStyle(BrandTheme.violet)
-                            .frame(width: 82, alignment: .leading)
+                    VStack(alignment: .leading, spacing: RRSpacing.xs) {
+                        HStack(spacing: RRSpacing.xs) {
+                            Label(
+                                claim.needsSource ? "Needs a source" : "Supported by \(claim.sourceField)",
+                                systemImage: claim.needsSource ? "exclamationmark.triangle.fill" : "checkmark.shield.fill"
+                            )
+                            .font(.caption.bold())
+                            .foregroundStyle(claim.needsSource ? BrandTheme.warning : BrandTheme.success)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.bold())
+                                .foregroundStyle(BrandTheme.inkMuted)
+                        }
                         Text(claim.text)
                             .font(.subheadline)
                             .foregroundStyle(BrandTheme.ink)
-                            .lineLimit(2)
+                            .lineLimit(3)
                             .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.caption.bold())
-                            .foregroundStyle(BrandTheme.inkMuted)
                     }
                     .padding(RRSpacing.sm)
-                    .background(BrandTheme.surface, in: RoundedRectangle(cornerRadius: RRRadius.small))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        claim.needsSource ? BrandTheme.amberSoft.opacity(0.55) : BrandTheme.surface,
+                        in: RoundedRectangle(cornerRadius: RRRadius.small)
+                    )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Source: \(claim.sourceField). \(claim.text)")
+                .accessibilityLabel(
+                    claim.needsSource
+                        ? "Needs a source. \(claim.text)"
+                        : "Supported by \(claim.sourceField). \(claim.text)"
+                )
+                .accessibilityHint(claim.needsSource ? "Opens evidence choices for this clause" : "Shows the supporting evidence")
+                .accessibilityIdentifier(claim.needsSource ? "answer-claim-needs-source" : "answer-claim-supported")
             }
         }
     }
@@ -448,6 +513,77 @@ struct AnswerStudioView: View {
             .joined(separator: " ")
     }
 
+    private var currentApprovalDecision: AnswerApprovalDecision? {
+        guard let selectedExperience else { return nil }
+        return approvalService.decision(
+            content: editedContent,
+            format: format,
+            claims: reconciledClaims,
+            experience: selectedExperience,
+            allowedContext: allowedContext
+        )
+    }
+
+    private var approvalBinding: Binding<Bool> {
+        Binding(
+            get: {
+                factsConfirmed
+                    && currentApprovalDecision?.canApprove == true
+                    && !isDraftOutdated
+            },
+            set: { wantsApproval in
+                guard wantsApproval else {
+                    factsConfirmed = false
+                    approvedContent = ""
+                    return
+                }
+                guard !isDraftOutdated,
+                      let decision = currentApprovalDecision,
+                      decision.canApprove else {
+                    factsConfirmed = false
+                    errorMessage = currentApprovalDecision?.issues.first
+                        ?? "This answer still needs review before approval."
+                    return
+                }
+                factsConfirmed = true
+            }
+        )
+    }
+
+    private func reconcileEditedClaims() {
+        guard let draft, let selectedExperience else {
+            reconciledClaims = []
+            return
+        }
+        let nextClaims = provenanceService.reconcile(
+            content: editedContent,
+            generatedContent: draft.content,
+            generatedClaims: draft.claims,
+            experience: selectedExperience,
+            sourceOverrides: sourceOverrides
+        )
+        if nextClaims != reconciledClaims {
+            reconciledClaims = nextClaims
+        }
+    }
+
+    private func connect(_ claim: AnswerClaim, to field: AnswerSourceField) {
+        sourceOverrides[provenanceService.claimKey(for: claim.text)] = field
+        factsConfirmed = false
+        approvedContent = ""
+        reconcileEditedClaims()
+        selectedClaim = nil
+
+        let updatedClaim = reconciledClaims.first {
+            provenanceService.claimKey(for: $0.text) == provenanceService.claimKey(for: claim.text)
+        }
+        if updatedClaim?.needsSource == false {
+            appState.showToast("Clause connected to \(field.title.lowercased())", symbol: "link.badge.plus")
+        } else {
+            appState.showToast("Source connected — revise unsupported wording", symbol: "exclamationmark.triangle.fill")
+        }
+    }
+
     private var suggestedQuestion: String {
         guard let selectedOpportunityID,
               let opportunity = opportunities.first(where: { $0.id == selectedOpportunityID }) else {
@@ -506,7 +642,7 @@ struct AnswerStudioView: View {
         case .discard:
             Button("Discard changes", role: .destructive) {
                 pendingConfirmation = nil
-                dismiss()
+                completeDismissal()
             }
         case nil:
             EmptyView()
@@ -526,6 +662,14 @@ struct AnswerStudioView: View {
         if hasUnsavedAnswer {
             pendingConfirmation = .discard
         } else {
+            completeDismissal()
+        }
+    }
+
+    private func completeDismissal() {
+        if let onBack {
+            onBack()
+        } else {
             dismiss()
         }
     }
@@ -543,6 +687,9 @@ struct AnswerStudioView: View {
             )
             draft = newDraft
             editedContent = newDraft.content
+            reconciledClaims = newDraft.claims
+            sourceOverrides = [:]
+            answerWasUserEdited = false
             factsConfirmed = false
             approvedContent = ""
             generatedInputs = currentInputs
@@ -555,6 +702,18 @@ struct AnswerStudioView: View {
 
     private func save(_ draft: GeneratedDraft) {
         guard let selectedExperience else { return }
+        let decision = approvalService.decision(
+            content: editedContent,
+            format: format,
+            claims: reconciledClaims,
+            experience: selectedExperience,
+            allowedContext: allowedContext
+        )
+        guard !factsConfirmed || decision.canApprove else {
+            factsConfirmed = false
+            errorMessage = decision.issues.first ?? "This answer still needs review before approval."
+            return
+        }
         isSaving = true
         let answer: GeneratedAnswer
         let previouslyConfirmedExperienceID: UUID?
@@ -571,7 +730,7 @@ struct AnswerStudioView: View {
                 tone: tone,
                 content: editedContent,
                 quickCues: draft.quickCues,
-                sourceFields: draft.claims.map(\.sourceField),
+                sourceFields: reconciledClaims.map(\.sourceField),
                 sourceClaims: [],
                 followUps: draft.followUps
             )
@@ -587,13 +746,11 @@ struct AnswerStudioView: View {
         answer.tone = tone
         answer.content = editedContent.trimmingCharacters(in: .whitespacesAndNewlines)
         answer.quickCues = draft.quickCues
-        answer.sourceFields = draft.claims.map(\.sourceField)
-        answer.sourceClaims = draft.claims.map {
-            StoredAnswerClaim(sourceField: $0.sourceField, text: $0.text)
-        }
+        answer.sourceFields = reconciledClaims.map(\.sourceField)
+        answer.sourceClaims = provenanceService.storedClaims(from: reconciledClaims)
         answer.followUps = draft.followUps
         answer.isFactConfirmed = factsConfirmed
-        answer.isUserEdited = editedContent != draft.content
+        answer.isUserEdited = answerWasUserEdited || editedContent != draft.content
         answer.sourceExperienceUpdatedAt = selectedExperience.updatedAt
         answer.sourceOpportunityUpdatedAt = selectedOpportunity?.contentUpdatedAt
         answer.updatedAt = Date()
@@ -606,7 +763,10 @@ struct AnswerStudioView: View {
             baselineSnapshot = currentEditSnapshot
             appState.showToast(factsConfirmed ? "Answer ready for practice" : "Draft saved")
             HapticService.success(enabled: appState.hapticsEnabled)
-            dismiss()
+            onSaved?(answer.id, factsConfirmed)
+            if dismissAfterSave {
+                dismiss()
+            }
         } catch {
             modelContext.rollback()
             errorMessage = error.localizedDescription
@@ -630,10 +790,47 @@ struct AnswerStudioView: View {
             audience = answer.audience
             tone = answer.tone
 
-            let claims = answer.sourceClaims.map {
-                AnswerClaim(id: UUID(), text: $0.text, sourceField: $0.sourceField)
-            }
             let source = experiences.first { $0.id == answer.experienceID }
+            let sourceOptions = source.map { provenanceService.availableSources(for: $0) } ?? []
+            let recoveredStoredClaims = answer.sourceClaims.map { storedClaim in
+                let recoveredSource = sourceOptions.first {
+                    $0.title.localizedCaseInsensitiveCompare(storedClaim.sourceField) == .orderedSame
+                }?.text ?? {
+                    switch storedClaim.sourceField {
+                    case "Question context": answer.question
+                    case "Story title": source?.title ?? ""
+                    default: ""
+                    }
+                }()
+                let isUntraceableEdit = answer.isUserEdited && storedClaim.origin == .legacy
+                return StoredAnswerClaim(
+                    sourceField: isUntraceableEdit ? "Edited — source needed" : storedClaim.sourceField,
+                    text: storedClaim.text,
+                    sourceText: storedClaim.sourceText.isEmpty ? recoveredSource : storedClaim.sourceText,
+                    origin: isUntraceableEdit ? .editedUnsupported : storedClaim.origin,
+                    isSupported: storedClaim.isSupported && !isUntraceableEdit
+                )
+            }
+            let roleTitle = answer.opportunityID
+                .flatMap { id in opportunities.first { $0.id == id }?.roleTitle } ?? ""
+            let claims = source.map {
+                AnswerClaimValidator().validate(
+                    recoveredStoredClaims,
+                    question: answer.question,
+                    format: answer.format,
+                    audience: answer.audience,
+                    tone: answer.tone,
+                    roleTitle: roleTitle,
+                    experience: GroundedExperience($0)
+                )
+            } ?? recoveredStoredClaims.map { stored in
+                AnswerClaim(
+                    text: stored.text,
+                    sourceField: "Edited — source needed",
+                    origin: .editedUnsupported,
+                    isSupported: false
+                )
+            }
             let warnings = source.map {
                 engine.reviewWarnings(
                     output: answer.content,
@@ -650,6 +847,9 @@ struct AnswerStudioView: View {
                 wordCount: answer.content.split(whereSeparator: \.isWhitespace).count
             )
             editedContent = answer.content
+            reconciledClaims = claims
+            sourceOverrides = [:]
+            answerWasUserEdited = answer.isUserEdited
             generatedInputs = AnswerDraftInputs(
                 experienceID: answer.experienceID,
                 experienceRevision: answer.sourceExperienceUpdatedAt,
@@ -661,7 +861,16 @@ struct AnswerStudioView: View {
                 tone: answer.tone
             )
             let sourceIsCurrent = answer.isApprovalCurrent(for: source, opportunity: selectedOpportunity)
-            factsConfirmed = sourceIsCurrent && !hasBlockingWarning(warnings)
+            let approvalIsCurrent = source.map {
+                approvalService.decision(
+                    content: answer.content,
+                    format: answer.format,
+                    claims: claims,
+                    experience: $0,
+                    allowedContext: [answer.question, selectedOpportunity?.roleTitle ?? ""].joined(separator: " ")
+                ).canApprove
+            } ?? false
+            factsConfirmed = sourceIsCurrent && approvalIsCurrent
             approvedContent = factsConfirmed ? answer.content : ""
             baselineSnapshot = currentEditSnapshot
             if answer.isFactConfirmed, !sourceIsCurrent {
@@ -688,13 +897,6 @@ struct AnswerStudioView: View {
             against: selectedExperience,
             allowedContext: allowedContext
         )
-    }
-
-    private func hasBlockingWarning(_ warnings: [String]) -> Bool {
-        warnings.contains { warning in
-            warning.localizedCaseInsensitiveContains("unsupported number")
-                || warning.localizedCaseInsensitiveContains("overstate")
-        }
     }
 
     private func deleteAnswer() {
@@ -742,21 +944,98 @@ private struct SourceClaimSheet: View {
     @Environment(\.dismiss) private var dismiss
     let claim: AnswerClaim
     let experience: Experience?
+    let availableSources: [AnswerSourceOption]
+    let onConnect: (AnswerSourceField) -> Void
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: RRSpacing.lg) {
-                    Label("FROM YOUR STORY", systemImage: "link")
+                    Label(
+                        claim.needsSource ? "SOURCE NEEDED" : "SUPPORTED CLAIM",
+                        systemImage: claim.needsSource ? "exclamationmark.triangle.fill" : "checkmark.shield.fill"
+                    )
                         .font(.rrCaption)
                         .tracking(0.8)
-                        .foregroundStyle(BrandTheme.violet)
-                    Text(claim.sourceField)
+                        .foregroundStyle(claim.needsSource ? BrandTheme.warning : BrandTheme.success)
+                    Text(claim.needsSource ? "Check this wording" : claim.sourceField)
                         .font(.rrHero)
+                    Text("Answer clause")
+                        .font(.rrCaption)
+                        .foregroundStyle(BrandTheme.inkMuted)
                     Text(claim.text)
                         .font(.rrBody)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .cardSurface(tint: BrandTheme.violetSoft.opacity(0.5))
+                        .cardSurface(tint: claim.needsSource ? BrandTheme.amberSoft.opacity(0.5) : BrandTheme.violetSoft.opacity(0.5))
+
+                    if claim.needsSource {
+                        InfoBanner(
+                            title: "Not verified yet",
+                            message: claim.sourceText.isEmpty
+                                ? "This edited clause is not connected to evidence. Choose the saved detail that supports it, or return to the answer and rewrite or remove it."
+                                : "This clause is connected to \(claim.sourceField.lowercased()), but it adds wording that the saved detail does not fully support. Revise the clause before approval.",
+                            kind: .warning
+                        )
+                    }
+
+                    if !claim.sourceText.isEmpty {
+                        VStack(alignment: .leading, spacing: RRSpacing.xs) {
+                            Text(claim.needsSource ? "CONNECTED EVIDENCE" : "SUPPORTING EVIDENCE")
+                                .font(.rrCaption)
+                                .tracking(0.8)
+                                .foregroundStyle(BrandTheme.inkMuted)
+                            Text(claim.sourceText)
+                                .font(.rrBody)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .cardSurface()
+                        }
+                    } else if !claim.needsSource {
+                        InfoBanner(
+                            title: "Older source record",
+                            message: "This saved claim names \(claim.sourceField.lowercased()), but its exact source excerpt was not stored by the earlier answer format.",
+                            kind: .information
+                        )
+                    }
+
+                    if claim.needsSource, !availableSources.isEmpty {
+                        VStack(alignment: .leading, spacing: RRSpacing.sm) {
+                            SectionHeading(title: "Connect to saved evidence", eyebrow: "CHOOSE ONE")
+                            Text("Connecting a field lets RoleReady check the wording; it does not automatically make an unsupported claim true.")
+                                .font(.subheadline)
+                                .foregroundStyle(BrandTheme.inkMuted)
+
+                            ForEach(availableSources) { source in
+                                Button {
+                                    onConnect(source.field)
+                                    dismiss()
+                                } label: {
+                                    VStack(alignment: .leading, spacing: RRSpacing.xxs) {
+                                        HStack {
+                                            Text(source.title)
+                                                .font(.rrHeadline)
+                                            Spacer()
+                                            Image(systemName: "link.badge.plus")
+                                                .foregroundStyle(BrandTheme.violet)
+                                        }
+                                        Text(source.text)
+                                            .font(.subheadline)
+                                            .foregroundStyle(BrandTheme.inkMuted)
+                                            .lineLimit(3)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                    .padding(RRSpacing.sm)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(BrandTheme.surface, in: RoundedRectangle(cornerRadius: RRRadius.small))
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Connect to \(source.title). \(source.text)")
+                                .accessibilityHint("Checks this answer clause against the selected saved evidence")
+                                .accessibilityIdentifier("connect-claim-\(source.field.rawValue)")
+                            }
+                        }
+                    }
+
                     if let experience {
                         Divider()
                         Text(experience.title)
@@ -769,7 +1048,11 @@ private struct SourceClaimSheet: View {
                                 .foregroundStyle(BrandTheme.inkMuted)
                         }
                     }
-                    InfoBanner(title: "No hidden source", message: "This clause was assembled from the field shown above. RoleReady did not search the web or another story.")
+                    InfoBanner(
+                        title: "Private, local check",
+                        message: "RoleReady checks this wording against the saved example on this device. It does not search the web or another example.",
+                        kind: .information
+                    )
                 }
                 .padding(RRSpacing.lg)
             }
@@ -779,5 +1062,6 @@ private struct SourceClaimSheet: View {
             .screenBackground()
         }
         .presentationDetents([.medium, .large])
+        .accessibilityIdentifier("source-claim-sheet")
     }
 }

@@ -2,59 +2,178 @@
 
 ## Validation layers
 
-RoleReady uses two complementary gates:
+RoleReady uses complementary gates:
 
-1. `scripts/verify-windows.ps1` performs dependency-free repository checks on Windows. It validates required files, checked-in Swift/Xcode settings, target folders, asset metadata, the seven-model declaration, four-tab wiring, and global privacy-sensitive coverage.
-2. `scripts/test-ios.sh` runs the complete Xcode unit and UI test plans on a dynamically selected iPhone Simulator with code signing disabled. This is the authoritative build, Swift 6 concurrency, warnings-as-errors, resource, launch, and interaction gate.
+1. `scripts/verify-windows.ps1` performs dependency-free repository checks for required files, the seven-model declaration, the Prepare/My Examples/Practise contract, project settings, asset metadata, global privacy-sensitive coverage, and absence of undeclared package dependencies.
+2. Unit tests exercise deterministic product policy, parsing, matching, answer grounding, provenance, approval, persistence, export, and restore.
+3. UI tests exercise onboarding in light and dark appearance, the first-use preparation journey, source inspection, manual example capture, honest sample matching, practice, accessibility text sizing, and adaptive tab navigation.
+4. Manual Simulator and physical-device passes cover visual quality, operating-system permissions, App Lock, background shielding, notifications, and device-dependent accessibility behaviour.
 
-The GitHub Actions workflow in `.github/workflows/ios.yml` runs the macOS gate on `macos-26`, prints the selected Xcode version for traceability, and uploads the `.xcresult` bundle whether tests pass or fail.
+The GitHub Actions workflow in `.github/workflows/ios.yml` runs the complete macOS gate on `macos-26`, reports the selected Xcode version, and uploads the `.xcresult` whether the tests pass or fail.
 
-## Local commands
+## Requirements
 
-Windows repository checks:
+- Xcode 26 or newer;
+- an iOS 18 or newer iPhone Simulator runtime; and
+- no API key, account, package resolution, or external service.
+
+The deployment target is iOS 18. The project uses Swift 6 with complete strict concurrency and treats Swift warnings as errors.
+
+## Exact local commands
+
+Run Windows repository checks from the repository root:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\verify-windows.ps1
 ```
 
-macOS build and test:
+Run the complete macOS unit and UI suite. The script chooses and boots an available iPhone Simulator:
 
 ```sh
 bash scripts/test-ios.sh
 ```
 
-Direct Xcode equivalent, after choosing a valid simulator identifier:
+Choose stable result and derived-data locations when diagnosing a run:
+
+```sh
+RESULT_BUNDLE_PATH="$PWD/TestResults/RoleReady-local.xcresult" \
+DERIVED_DATA_PATH="$PWD/.derived-data" \
+CODE_SIGNING_ALLOWED=NO \
+bash scripts/test-ios.sh
+```
+
+The result path must not already exist. Delete or rename an earlier local result deliberately before reusing a path.
+
+Build without running tests, after obtaining a UUID from `xcrun simctl list devices available`:
+
+```sh
+xcodebuild build \
+  -project RoleReady.xcodeproj \
+  -scheme RoleReady \
+  -configuration Debug \
+  -destination 'platform=iOS Simulator,id=<SIMULATOR-UUID>' \
+  -derivedDataPath "$PWD/.derived-data" \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Run only the unit target:
 
 ```sh
 xcodebuild test \
   -project RoleReady.xcodeproj \
   -scheme RoleReady \
   -destination 'platform=iOS Simulator,id=<SIMULATOR-UUID>' \
-  -resultBundlePath TestResults/RoleReady.xcresult \
+  -derivedDataPath "$PWD/.derived-data" \
+  -only-testing:RoleReadyTests \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-## Test scope
+Run only the critical UI target:
 
-The checked-in suites cover:
+```sh
+xcodebuild test \
+  -project RoleReady.xcodeproj \
+  -scheme RoleReady \
+  -destination 'platform=iOS Simulator,id=<SIMULATOR-UUID>' \
+  -derivedDataPath "$PWD/.derived-data" \
+  -only-testing:RoleReadyUITests \
+  CODE_SIGNING_ALLOWED=NO
+```
 
-- evidence scoring, parser behaviour, and explainable evidence matching;
-- grounded answer formats, claim validation, source provenance, and approval freshness;
-- export versioning, confidentiality redaction, practice-session provenance, and reflection scope;
-- SwiftData seed integrity, sample removal, preferences reset, and dependent-record cleanup;
-- onboarding, evidence capture, role analysis, requirement-to-answer flow, saved-answer reopening, pre-interview practice, and large Dynamic Type behaviour.
+Inspect a result bundle in Xcode, or list its tests from Terminal:
+
+```sh
+xcrun xcresulttool get test-results tests \
+  --path TestResults/RoleReady-local.xcresult
+```
+
+## Automated test scope
+
+The checked-in unit suites cover:
+
+- career-history extraction, conservative ownership defaults, warnings, and combining drafts;
+- document import types, size and empty-document failures;
+- evidence scoring, job parsing, and opportunity planning;
+- relevance-gated direct, transferable, weak, and no-evidence matching, including misleading lexical edge cases;
+- grounded answer formats, word-count limits, speaking duration, numeric and ownership validation;
+- source-claim reconciliation, unsupported edits, explicit source links, and deterministic approval;
+- approval invalidation after example or role revision;
+- reduced-sensitivity export, version 2 field fidelity, and dependent-record filtering;
+- version 1 and version 2 restore, duplicate handling, partial archives, malformed and future versions, dependency rejection, sensitivity metadata, profile safety, rollback guards, and restored-answer revalidation;
+- SwiftData seed integrity, sample removal, preferences reset, and dependent-record cleanup; and
+- practice session and reflection associations.
+
+The checked-in UI suite covers:
+
+- task-first onboarding and primary action reachability at accessibility XXXL;
+- the complete fresh-workspace path from pasted career history and job text through draft review, honest matching, strengthening, grounded answer generation, opening a claim's supporting evidence, approval, and guided practice;
+- sample examples, saved roles, semantic match tiers, and absence of percentage-like hiring-probability copy;
+- approved practice cues and explicit pre-interview positioning; and
+- manual example capture and retrieval under My Examples;
+- onboarding at accessibility XXXL; and
+- onboarding in dark appearance, plus adaptive Prepare/My Examples/Practise navigation on iPad.
+
+## Critical-path manual script
+
+Run this path on a clean Simulator after the automated suite:
+
+1. Delete the app from the Simulator and launch it.
+2. Confirm onboarding explains real evidence, user approval, local-by-default storage, and the no-live-assistance boundary.
+3. Choose **Prepare for a role**.
+4. Import or paste realistic career history and confirm extracted items are marked unverified.
+5. Edit, reject, or combine drafts; approve one example for matching.
+6. Import or paste a realistic job advertisement and review its requirement themes.
+7. Confirm the recommendation is Direct, Transferable, Weak or partial, or No verified evidence with a plain-language reason.
+8. Answer the missing-detail prompts and generate the default 60-second answer.
+9. Inspect every claim's supporting evidence.
+10. Add an unsupported number and stronger ownership statement. Confirm approval is revoked and the clauses require a source.
+11. Remove or truthfully resolve the unsupported edits, approve the answer, and enter guided practice.
+12. Reveal cues, run the timer, record confidence, and inspect likely follow-ups.
+13. Create both reduced-sensitivity and complete exports; inspect the reduced archive for omitted sensitive fields.
+14. Add a local record, restore the archive, review the preview, and confirm restore does not delete or overwrite the local record.
+15. Attempt malformed, wrong-identifier, future-version, duplicate, and partial archives; confirm clear errors and no workspace loss.
+
+## Accessibility and visual matrix
+
+Review the first-use journey, example editor, answer source review, practice, Settings restore preview, empty states, and errors under:
+
+- light and dark appearance;
+- default and accessibility XXXL Dynamic Type;
+- VoiceOver with logical reading order, descriptive labels, values, and hints;
+- Reduce Motion;
+- Increase Contrast where available;
+- a compact iPhone and a large iPhone; and
+- iPad portrait and landscape with split-screen widths.
+
+Important actions must remain visible without gesture-only discovery, minimum touch targets must remain usable, and sheets must scroll to their confirmation controls.
+
+## Realistic-size and failure checks
+
+- Import multi-page PDFs, `.docx`, RTF, and plain text near—but below—the 20 MB and 250,000-character limits.
+- Verify a scanned PDF with no selectable text produces a useful paste-manually warning or empty-document error.
+- Exercise a career history that yields no strong example and a role that has no verified match.
+- Populate a large example library and role with many requirement themes; check preparation interaction and matching latency.
+- Preview a near-20 MB archive and watch for a temporary main-thread pause during validation.
+- Background the app on every sensitive screen and confirm the privacy shield appears.
+- Force a persistence or file-access failure where practical and confirm existing data remains intact.
 
 ## Release checklist
 
-- [ ] Windows repository verification passes.
-- [ ] `xcodebuild test` passes on Xcode 26 with no warnings.
-- [ ] The app launches on an iOS 18 Simulator and the four primary tabs render.
-- [ ] Onboarding works with and without sample data.
-- [ ] Paste/import role analysis, match report, grounded answer, save/reopen, and practice flows pass.
-- [ ] App Lock cancellation, background privacy shield, reduced-sensitivity export, full export, and complete deletion are verified on a physical device where applicable.
-- [ ] VoiceOver, extra-extra-extra-large accessibility text, Reduce Motion, dark mode, and high-contrast appearance receive a final manual pass.
-- [ ] A distribution build is signed with the intended Apple Developer team and App Store privacy/notification disclosures are reviewed by the publisher.
+- [ ] Windows repository verification passes with the Prepare/My Examples/Practise tab contract.
+- [ ] `bash scripts/test-ios.sh` passes on Xcode 26 with no warnings.
+- [ ] The complete first-use UI path passes from clean install through approved practice.
+- [ ] Reduced and complete export contents are manually inspected.
+- [ ] Version 1 and version 2 restore pass with duplicates, invalid records, and existing local data.
+- [ ] App Lock cancellation, lockout recovery, background privacy shield, local notifications, and complete deletion are verified on a physical device.
+- [ ] VoiceOver, accessibility XXXL, Reduce Motion, dark mode, and high-contrast appearance receive a final manual pass.
+- [ ] Compact iPhone and iPad portrait, landscape, and split-view layouts receive a final manual pass.
+- [ ] No realistic or sensitive user data appears in source fixtures, screenshots intended for publication, logs, `.xcresult` attachments, or crash output.
+- [ ] A distribution archive is signed with the intended Apple Developer team and App Store privacy and notification disclosures are reviewed by the publisher.
 
-## Current environment limitation
+## Known validation limitations
 
-The repository was assembled in a Windows environment. Windows cannot run Xcode, expand Swift macros, compile SwiftUI, execute the iOS Simulator, or validate Apple code signing. Passing `verify-windows.ps1` therefore confirms repository consistency only. A passing macOS/Xcode 26 test run remains mandatory before TestFlight or App Store distribution.
+- `scripts/test-ios.sh` selects an iPhone and does not replace manual iPad, dark-mode, VoiceOver, or physical-device checks.
+- UI tests launch with an in-memory SwiftData store; on-disk upgrade and long-lived workspace checks need a manual installed-build pass.
+- App Lock and notification behaviour depend on system state and require physical-device verification before distribution.
+- Restore validation currently reads SwiftData state on the main actor, so a near-maximum-size archive can cause a brief pause.
+- Windows verification never compiles Swift, expands SwiftData macros, launches Simulator, or validates signing.

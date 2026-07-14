@@ -62,7 +62,7 @@ struct PracticeHomeView: View {
         let readyAnswers = confirmedAnswers(for: opportunity)
         let completedRuns = sessionCount(for: opportunity)
 
-        VStack(alignment: .leading, spacing: RRSpacing.md) {
+        return VStack(alignment: .leading, spacing: RRSpacing.md) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: RRSpacing.xxs) {
                     Text("ACTIVE PREP DECK")

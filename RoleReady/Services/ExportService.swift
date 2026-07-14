@@ -3,7 +3,7 @@ import SwiftData
 
 struct RoleReadyExport: Codable {
     static let formatIdentifier = "com.roleready.export"
-    static let formatVersion = 1
+    static let formatVersion = 2
 
     let identifier: String
     let version: Int
@@ -26,6 +26,9 @@ struct RoleReadyExport: Codable {
         let targetRoles: [String]
         let skills: [String]
         let careerGoal: String
+        let isSample: Bool?
+        let createdAt: Date?
+        let updatedAt: Date?
     }
 
     struct ExperienceDTO: Codable {
@@ -44,6 +47,11 @@ struct RoleReadyExport: Codable {
         let capabilities: [String]
         let tools: [String]
         let confidentiality: String
+        let isApprovedForMatching: Bool?
+        let isSample: Bool?
+        let useCount: Int?
+        let createdAt: Date?
+        let updatedAt: Date?
     }
 
     struct OpportunityDTO: Codable {
@@ -57,6 +65,9 @@ struct RoleReadyExport: Codable {
         let interviewDate: Date?
         let notes: String
         let contentUpdatedAt: Date
+        let isSample: Bool?
+        let createdAt: Date?
+        let updatedAt: Date?
     }
 
     struct RequirementDTO: Codable {
@@ -67,6 +78,8 @@ struct RoleReadyExport: Codable {
         let keywords: [String]
         let capabilities: [String]
         let importance: Int
+        let isConfirmed: Bool?
+        let createdAt: Date?
     }
 
     struct AnswerDTO: Codable {
@@ -86,6 +99,9 @@ struct RoleReadyExport: Codable {
         let sourceExperienceUpdatedAt: Date
         let sourceOpportunityUpdatedAt: Date?
         let createdAt: Date
+        let isUserEdited: Bool?
+        let isSample: Bool?
+        let updatedAt: Date?
     }
 
     struct ReflectionDTO: Codable {
@@ -98,6 +114,7 @@ struct RoleReadyExport: Codable {
         let feedback: String
         let nextImprovement: String
         let createdAt: Date
+        let updatedAt: Date?
     }
 
     struct PracticeSessionDTO: Codable {
@@ -110,6 +127,61 @@ struct RoleReadyExport: Codable {
         let confidence: Int
         let notes: String
         let practisedAt: Date
+    }
+
+    init(
+        identifier: String,
+        version: Int,
+        createdAt: Date,
+        includesConfidential: Bool,
+        profiles: [ProfileDTO],
+        experiences: [ExperienceDTO],
+        opportunities: [OpportunityDTO],
+        requirements: [RequirementDTO],
+        answers: [AnswerDTO],
+        practiceSessions: [PracticeSessionDTO],
+        reflections: [ReflectionDTO]
+    ) {
+        self.identifier = identifier
+        self.version = version
+        self.createdAt = createdAt
+        self.includesConfidential = includesConfidential
+        self.profiles = profiles
+        self.experiences = experiences
+        self.opportunities = opportunities
+        self.requirements = requirements
+        self.answers = answers
+        self.practiceSessions = practiceSessions
+        self.reflections = reflections
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case identifier
+        case version
+        case createdAt
+        case includesConfidential
+        case profiles
+        case experiences
+        case opportunities
+        case requirements
+        case answers
+        case practiceSessions
+        case reflections
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        identifier = try container.decode(String.self, forKey: .identifier)
+        version = try container.decode(Int.self, forKey: .version)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        includesConfidential = try container.decodeIfPresent(Bool.self, forKey: .includesConfidential) ?? false
+        profiles = try container.decodeIfPresent([ProfileDTO].self, forKey: .profiles) ?? []
+        experiences = try container.decodeIfPresent([ExperienceDTO].self, forKey: .experiences) ?? []
+        opportunities = try container.decodeIfPresent([OpportunityDTO].self, forKey: .opportunities) ?? []
+        requirements = try container.decodeIfPresent([RequirementDTO].self, forKey: .requirements) ?? []
+        answers = try container.decodeIfPresent([AnswerDTO].self, forKey: .answers) ?? []
+        practiceSessions = try container.decodeIfPresent([PracticeSessionDTO].self, forKey: .practiceSessions) ?? []
+        reflections = try container.decodeIfPresent([ReflectionDTO].self, forKey: .reflections) ?? []
     }
 }
 
@@ -138,7 +210,8 @@ struct ExportService {
                 difficultMoment: item.difficultMoment,
                 feedback: item.feedback,
                 nextImprovement: item.nextImprovement,
-                createdAt: item.createdAt
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt
             )
         }
 
@@ -148,10 +221,43 @@ struct ExportService {
             createdAt: Date(),
             includesConfidential: includeConfidential,
             profiles: profiles.map { profile in
-                .init(id: profile.id, name: profile.name, headline: profile.headline, professionalSummary: profile.professionalSummary, currentOrganisation: profile.currentOrganisation, targetRoles: profile.targetRoles, skills: profile.skills, careerGoal: profile.careerGoal)
+                .init(
+                    id: profile.id,
+                    name: profile.name,
+                    headline: profile.headline,
+                    professionalSummary: profile.professionalSummary,
+                    currentOrganisation: profile.currentOrganisation,
+                    targetRoles: profile.targetRoles,
+                    skills: profile.skills,
+                    careerGoal: profile.careerGoal,
+                    isSample: profile.isSample,
+                    createdAt: profile.createdAt,
+                    updatedAt: profile.updatedAt
+                )
             },
             experiences: experiences.map { item in
-                .init(id: item.id, title: item.title, organisation: item.organisation, occurredAt: item.occurredAt, kind: item.kind.rawValue, situation: item.situation, task: item.task, actions: item.actions, result: item.result, evidence: item.evidence, learning: item.learning, ownership: item.ownership.rawValue, capabilities: item.capabilities.map(\.rawValue), tools: item.tools, confidentiality: item.confidentiality.rawValue)
+                .init(
+                    id: item.id,
+                    title: item.title,
+                    organisation: item.organisation,
+                    occurredAt: item.occurredAt,
+                    kind: item.kind.rawValue,
+                    situation: item.situation,
+                    task: item.task,
+                    actions: item.actions,
+                    result: item.result,
+                    evidence: item.evidence,
+                    learning: item.learning,
+                    ownership: item.ownership.rawValue,
+                    capabilities: item.capabilities.map(\.rawValue),
+                    tools: item.tools,
+                    confidentiality: item.confidentiality.rawValue,
+                    isApprovedForMatching: item.isApprovedForMatching,
+                    isSample: item.isSample,
+                    useCount: item.useCount,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
             },
             opportunities: opportunities.map { item in
                 .init(
@@ -164,14 +270,47 @@ struct ExportService {
                     closingDate: item.closingDate,
                     interviewDate: item.interviewDate,
                     notes: includeConfidential ? item.notes : "",
-                    contentUpdatedAt: item.contentUpdatedAt
+                    contentUpdatedAt: item.contentUpdatedAt,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
                 )
             },
             requirements: requirements.map { item in
-                .init(id: item.id, opportunityID: item.opportunityID, text: item.text, kind: item.kind.rawValue, keywords: item.keywords, capabilities: item.capabilities.map(\.rawValue), importance: item.importance)
+                .init(
+                    id: item.id,
+                    opportunityID: item.opportunityID,
+                    text: item.text,
+                    kind: item.kind.rawValue,
+                    keywords: item.keywords,
+                    capabilities: item.capabilities.map(\.rawValue),
+                    importance: item.importance,
+                    isConfirmed: item.isConfirmed,
+                    createdAt: item.createdAt
+                )
             },
             answers: answers.map { item in
-                .init(id: item.id, question: item.question, experienceID: item.experienceID, opportunityID: item.opportunityID, format: item.format.rawValue, audience: item.audience.rawValue, tone: item.tone.rawValue, content: item.content, quickCues: item.quickCues, sourceFields: item.sourceFields, sourceClaims: item.sourceClaims, followUps: item.followUps, isFactConfirmed: item.isFactConfirmed, sourceExperienceUpdatedAt: item.sourceExperienceUpdatedAt, sourceOpportunityUpdatedAt: item.sourceOpportunityUpdatedAt, createdAt: item.createdAt)
+                .init(
+                    id: item.id,
+                    question: item.question,
+                    experienceID: item.experienceID,
+                    opportunityID: item.opportunityID,
+                    format: item.format.rawValue,
+                    audience: item.audience.rawValue,
+                    tone: item.tone.rawValue,
+                    content: item.content,
+                    quickCues: item.quickCues,
+                    sourceFields: item.sourceFields,
+                    sourceClaims: item.sourceClaims,
+                    followUps: item.followUps,
+                    isFactConfirmed: item.isFactConfirmed,
+                    sourceExperienceUpdatedAt: item.sourceExperienceUpdatedAt,
+                    sourceOpportunityUpdatedAt: item.sourceOpportunityUpdatedAt,
+                    createdAt: item.createdAt,
+                    isUserEdited: item.isUserEdited,
+                    isSample: item.isSample,
+                    updatedAt: item.updatedAt
+                )
             },
             practiceSessions: practiceSessions.map { item in
                 .init(

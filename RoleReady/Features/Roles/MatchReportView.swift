@@ -99,7 +99,7 @@ struct MatchReportView: View {
 
                 InfoBanner(
                     title: "A match is evidence, not a verdict",
-                    message: "Scores compare the wording and capabilities in this role with stories you approved for matching. They do not predict whether you will be hired.",
+                    message: "RoleReady compares verified detail and capabilities with this requirement. The result describes your evidence—not your chance of being hired.",
                     kind: .information
                 )
 
@@ -113,10 +113,10 @@ struct MatchReportView: View {
 
                 VStack(alignment: .leading, spacing: RRSpacing.md) {
                     SectionHeading(
-                        title: "Requirement map",
+                        title: "What the role needs",
                         eyebrow: "\(reports.count) reviewed"
                     )
-                    Text("Open the reasoning to see why a story ranked first, then compare the alternatives before using it in an answer.")
+                    Text("Open the reasoning to see why an example ranked first, then compare the alternatives before using it in an answer.")
                         .font(.rrBody)
                         .foregroundStyle(BrandTheme.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
@@ -263,11 +263,7 @@ private struct RequirementEvidenceReport: Identifiable {
     var id: UUID { requirementID }
 
     var tier: MatchTier {
-        matches.first?.tier ?? .gap
-    }
-
-    var bestScore: Double {
-        matches.first?.score ?? 0
+        matches.first?.tier ?? .none
     }
 }
 
@@ -275,39 +271,40 @@ private struct MatchReportSummary: View {
     let opportunity: Opportunity
     let reports: [RequirementEvidenceReport]
 
-    private var strongCount: Int {
+    private var directCount: Int {
         reports.reduce(into: 0) { count, report in
-            if case .strong = report.tier { count += 1 }
+            if case .direct = report.tier { count += 1 }
         }
     }
 
-    private var promisingCount: Int {
+    private var transferableCount: Int {
         reports.reduce(into: 0) { count, report in
-            if case .promising = report.tier { count += 1 }
+            if case .transferable = report.tier { count += 1 }
         }
     }
 
-    private var gapCount: Int {
+    private var weakCount: Int {
         reports.reduce(into: 0) { count, report in
-            if case .gap = report.tier { count += 1 }
+            if case .weak = report.tier { count += 1 }
         }
     }
 
-    private var coverageScore: Int {
-        guard !reports.isEmpty else { return 0 }
-        let totalWeight = reports.reduce(0) { $0 + max($1.importance, 1) }
-        let weightedScore = reports.reduce(0.0) { partial, report in
-            partial + report.bestScore * Double(max(report.importance, 1))
+    private var noneCount: Int {
+        reports.reduce(into: 0) { count, report in
+            if case .none = report.tier { count += 1 }
         }
-        return Int((weightedScore / Double(totalWeight) * 100).rounded())
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: RRSpacing.lg) {
-            HStack(alignment: .center, spacing: RRSpacing.lg) {
-                MatchCoverageRing(score: coverageScore)
+            HStack(alignment: .center, spacing: RRSpacing.md) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(.title, design: .rounded, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 58, height: 58)
+                    .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: RRRadius.medium))
                 VStack(alignment: .leading, spacing: RRSpacing.xs) {
-                    Text("EVIDENCE COVERAGE")
+                    Text("HONEST EVIDENCE VIEW")
                         .font(.rrCaption)
                         .tracking(0.9)
                         .foregroundStyle(Color.white.opacity(0.76))
@@ -324,50 +321,23 @@ private struct MatchReportSummary: View {
                 Spacer(minLength: 0)
             }
 
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: RRSpacing.sm) {
-                    summaryMetrics
-                }
-                VStack(spacing: RRSpacing.sm) {
-                    summaryMetrics
-                }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: RRSpacing.sm)], spacing: RRSpacing.sm) {
+                summaryMetrics
             }
         }
         .padding(RRSpacing.lg)
         .background(BrandTheme.heroGradient, in: RoundedRectangle(cornerRadius: RRRadius.hero, style: .continuous))
         .shadow(color: BrandTheme.violet.opacity(0.20), radius: 22, y: 11)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Evidence coverage \(coverageScore) percent. \(strongCount) strong, \(promisingCount) could support, \(gapCount) gaps.")
+        .accessibilityLabel("Evidence summary. \(directCount) direct, \(transferableCount) transferable, \(weakCount) weak or partial, \(noneCount) with no verified evidence.")
     }
 
     @ViewBuilder
     private var summaryMetrics: some View {
-        MatchSummaryMetric(value: strongCount, label: "Strong", colour: BrandTheme.success)
-        MatchSummaryMetric(value: promisingCount, label: "Could support", colour: BrandTheme.amber)
-        MatchSummaryMetric(value: gapCount, label: "Gaps", colour: .white)
-    }
-}
-
-private struct MatchCoverageRing: View {
-    let score: Int
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.18), lineWidth: 8)
-            Circle()
-                .trim(from: 0, to: CGFloat(score) / 100)
-                .stroke(Color.white, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            VStack(spacing: 0) {
-                Text("\(score)")
-                    .font(.system(.title2, design: .rounded, weight: .bold))
-                Text("percent")
-                    .font(.caption2.weight(.semibold))
-            }
-            .foregroundStyle(.white)
-        }
-        .frame(width: 88, height: 88)
+        MatchSummaryMetric(value: directCount, label: "Direct", colour: BrandTheme.success)
+        MatchSummaryMetric(value: transferableCount, label: "Transferable", colour: BrandTheme.teal)
+        MatchSummaryMetric(value: weakCount, label: "Weak / partial", colour: BrandTheme.amber)
+        MatchSummaryMetric(value: noneCount, label: "No evidence", colour: .white)
     }
 }
 
@@ -495,10 +465,6 @@ private struct RequirementMatchCard: View {
                 Spacer(minLength: RRSpacing.xs)
                 VStack(alignment: .trailing, spacing: RRSpacing.xs) {
                     MatchTierBadge(tier: match.tier)
-                    Text("\(Int((match.score * 100).rounded()))%")
-                        .font(.rrCaption)
-                        .foregroundStyle(BrandTheme.inkMuted)
-                        .accessibilityLabel("Match score \(Int((match.score * 100).rounded())) percent")
                 }
             }
 
@@ -511,10 +477,10 @@ private struct RequirementMatchCard: View {
                 matchSignals(match)
             }
 
-            if case .gap = match.tier {
+            if match.tier == .weak || match.tier == .none {
                 evidenceGap(
-                    title: "Closest story, but not proof yet",
-                    message: "This story has limited direct overlap. Treat it as a prompt to capture better evidence, not as permission to stretch the claim."
+                    title: match.tier == .none ? "No verified evidence yet" : "Closest example, but not proof yet",
+                    message: "Treat this as a prompt to capture stronger detail, not as permission to stretch the claim."
                 )
             }
 
@@ -612,11 +578,6 @@ private struct RequirementMatchCard: View {
         }
     }
 
-    private func isGap(_ tier: MatchTier) -> Bool {
-        if case .gap = tier { return true }
-        return false
-    }
-
     @ViewBuilder
     private func evidenceActions(match: EvidenceMatch, experience: Experience) -> some View {
         Button {
@@ -634,9 +595,9 @@ private struct RequirementMatchCard: View {
         }
         .buttonStyle(.borderedProminent)
         .tint(BrandTheme.violet)
-        .disabled(isGap(match.tier))
+        .disabled(!match.tier.allowsAnswer)
         .accessibilityHint(
-            isGap(match.tier)
+            !match.tier.allowsAnswer
                 ? "Capture stronger evidence before building an answer"
                 : "Uses this story in the answer studio"
         )
@@ -668,16 +629,13 @@ private struct AlternativeEvidenceRow: View {
                 Spacer(minLength: RRSpacing.xs)
                 VStack(alignment: .trailing, spacing: RRSpacing.xs) {
                     MatchTierBadge(tier: match.tier)
-                    Text("\(Int((match.score * 100).rounded()))%")
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(BrandTheme.inkMuted)
                 }
             }
             .padding(RRSpacing.sm)
             .background(BrandTheme.canvasRaised, in: RoundedRectangle(cornerRadius: RRRadius.small, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Alternative: \(experience.title), \(match.tier.title), \(Int((match.score * 100).rounded())) percent")
+        .accessibilityLabel("Alternative: \(experience.title), \(match.tier.title)")
     }
 }
 

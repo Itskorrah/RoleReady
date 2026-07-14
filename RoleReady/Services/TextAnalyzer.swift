@@ -1,6 +1,6 @@
 import Foundation
 
-struct TextAnalyzer {
+struct TextAnalyzer: Sendable {
     private let stopWords: Set<String> = [
         "a", "an", "and", "are", "as", "at", "be", "been", "being", "by", "for", "from", "had", "has", "have",
         "i", "in", "into", "is", "it", "its", "of", "on", "or", "our", "that", "the", "their", "this", "to", "was",
@@ -23,16 +23,24 @@ struct TextAnalyzer {
     ]
 
     func tokens(in text: String, includeStopWords: Bool = false) -> [String] {
+        surfaceTokens(in: text, includeStopWords: includeStopWords).map(stem)
+    }
+
+    /// Human-readable tokens in their original inflected form. Matching uses
+    /// stemmed tokens internally, but product copy must never expose stems.
+    func surfaceTokens(in text: String, includeStopWords: Bool = false) -> [String] {
         let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         let pattern = #"[a-z0-9][a-z0-9+.#-]*"#
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return [] }
         let range = NSRange(folded.startIndex..<folded.endIndex, in: folded)
         return expression.matches(in: folded, range: range).compactMap { match in
             guard let tokenRange = Range(match.range, in: folded) else { return nil }
-            let token = String(folded[tokenRange]).lowercased()
+            let token = String(folded[tokenRange])
+                .lowercased()
+                .trimmingCharacters(in: CharacterSet(charactersIn: "."))
             guard token.count > 1 else { return nil }
             guard includeStopWords || !stopWords.contains(token) else { return nil }
-            return stem(token)
+            return token
         }
     }
 
@@ -74,12 +82,16 @@ struct TextAnalyzer {
     }
 
     func numericClaims(in text: String) -> Set<String> {
+        Set(orderedNumericClaims(in: text))
+    }
+
+    func orderedNumericClaims(in text: String) -> [String] {
         let pattern = #"(?<![A-Za-z])\$?\d+(?:[.,]\d+)*(?:%|\s?(?:hours?|days?|weeks?|months?|years?|gb|mb|tests?))?"#
         guard let expression = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { return [] }
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return Set(expression.matches(in: text, range: range).compactMap { match in
+        return expression.matches(in: text, range: range).compactMap { match in
             Range(match.range, in: text).map { String(text[$0]).lowercased().replacingOccurrences(of: " ", with: "") }
-        })
+        }
     }
 
     private func stem(_ word: String) -> String {

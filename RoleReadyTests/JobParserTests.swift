@@ -46,5 +46,16 @@ final class JobParserTests: XCTestCase {
         let python = result.requirements.filter { $0.text.localizedCaseInsensitiveContains("Python data pipeline") }
         XCTAssertEqual(python.count, 1)
     }
-}
 
+    func testRequirementMetadataIsRecomputedFromConfirmedEditedText() {
+        let service = RequirementMetadataService()
+
+        let original = service.analyse("Build reliable Python data pipelines and automated tests.")
+        let edited = service.analyse("Facilitate agreement with policy and operational stakeholders.")
+
+        XCTAssertTrue(original.keywords.contains("python"))
+        XCTAssertFalse(edited.keywords.contains("python"))
+        XCTAssertTrue(edited.capabilities.contains(.stakeholderCommunication))
+        XCTAssertFalse(edited.capabilities.contains(.technicalProblemSolving))
+    }
+}

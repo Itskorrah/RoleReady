@@ -1,9 +1,55 @@
 import Foundation
 import SwiftData
 
-struct StoredAnswerClaim: Codable, Hashable {
+enum AnswerClaimOrigin: String, Codable, Sendable {
+    case generated
+    case questionContext
+    case editedSupported
+    case editedUnsupported
+    case legacy
+}
+
+struct StoredAnswerClaim: Codable, Hashable, Sendable {
     let sourceField: String
     let text: String
+    let sourceText: String
+    let origin: AnswerClaimOrigin
+    let isSupported: Bool
+
+    init(
+        sourceField: String,
+        text: String,
+        sourceText: String = "",
+        origin: AnswerClaimOrigin = .generated,
+        isSupported: Bool = true
+    ) {
+        self.sourceField = sourceField
+        self.text = text
+        self.sourceText = sourceText
+        self.origin = origin
+        self.isSupported = isSupported
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case sourceField
+        case text
+        case sourceText
+        case origin
+        case isSupported
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sourceField = try container.decode(String.self, forKey: .sourceField)
+        text = try container.decode(String.self, forKey: .text)
+        sourceText = try container.decodeIfPresent(String.self, forKey: .sourceText) ?? ""
+        origin = try container.decodeIfPresent(AnswerClaimOrigin.self, forKey: .origin) ?? .legacy
+        isSupported = try container.decodeIfPresent(Bool.self, forKey: .isSupported) ?? true
+    }
+
+    var needsSource: Bool {
+        !isSupported || origin == .editedUnsupported
+    }
 }
 
 @Model
@@ -113,12 +159,22 @@ final class GeneratedAnswer {
 
     func isApprovalCurrent(for source: Experience?, opportunity: Opportunity? = nil) -> Bool {
         guard isFactConfirmed, let source else { return false }
+        guard hasTrustworthyProvenance else { return false }
         guard source.updatedAt <= sourceExperienceUpdatedAt else { return false }
         guard !source.confidentiality.blocksAutomaticUse || source.isApprovedForMatching else { return false }
         if opportunityID != nil {
             guard let opportunity,
                   let sourceOpportunityUpdatedAt,
                   opportunity.contentUpdatedAt <= sourceOpportunityUpdatedAt else { return false }
+        }
+        return true
+    }
+
+    var hasTrustworthyProvenance: Bool {
+        let claims = sourceClaims
+        guard !claims.isEmpty, claims.allSatisfy({ !$0.needsSource }) else { return false }
+        if isUserEdited, claims.contains(where: { $0.origin == .legacy }) {
+            return false
         }
         return true
     }

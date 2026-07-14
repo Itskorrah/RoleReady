@@ -31,14 +31,34 @@ final class EvidenceMatcherTests: XCTestCase {
         let matches = EvidenceMatcher().rank(requirement: requirement, against: [customer, python])
 
         XCTAssertEqual(matches.first?.experienceID, python.id)
-        XCTAssertEqual(matches.first?.tier, .strong)
+        XCTAssertEqual(matches.first?.tier, .direct)
         XCTAssertTrue(matches.first?.matchedTerms.contains("python") == true)
         XCTAssertFalse(matches.first?.explanation.isEmpty == true)
     }
 
+    func testMatchedTermsRemainHumanReadableInsteadOfExposingStems() throws {
+        let experience = TestFixtures.experience(
+            actions: ["I improved services while maintaining quality."],
+            capabilities: [.customerFocus, .dataQuality]
+        )
+        let requirement = JobRequirement(
+            opportunityID: UUID(),
+            text: "Improve public services while maintaining quality.",
+            kind: .mustHave,
+            keywords: [],
+            capabilities: [.customerFocus, .dataQuality]
+        )
+
+        let match = try XCTUnwrap(EvidenceMatcher().rank(requirement: requirement, against: [experience]).first)
+
+        XCTAssertTrue(match.matchedTerms.contains("services"))
+        XCTAssertFalse(match.matchedTerms.contains("servic"))
+        XCTAssertFalse(match.explanation.contains("servic."))
+    }
+
     func testHighlySensitiveStoryIsExcludedFromAutomaticRanking() {
         let sensitive = TestFixtures.experience(confidentiality: .highlySensitive)
-        sensitive.isApprovedForMatching = false
+        sensitive.isApprovedForMatching = true
         let requirement = JobRequirement(
             opportunityID: UUID(),
             text: "Modernise a Python workflow.",
@@ -48,6 +68,20 @@ final class EvidenceMatcherTests: XCTestCase {
         )
 
         XCTAssertTrue(EvidenceMatcher().rank(requirement: requirement, against: [sensitive]).isEmpty)
+        XCTAssertFalse(
+            EvidenceMatcher().rank(
+                requirement: requirement,
+                against: [sensitive],
+                explicitlyApprovedSensitiveExperienceIDs: [sensitive.id]
+            ).isEmpty
+        )
+        sensitive.isApprovedForMatching = false
+        XCTAssertTrue(
+            EvidenceMatcher().rank(
+                requirement: requirement,
+                against: [sensitive],
+                explicitlyApprovedSensitiveExperienceIDs: [sensitive.id]
+            ).isEmpty
+        )
     }
 }
-

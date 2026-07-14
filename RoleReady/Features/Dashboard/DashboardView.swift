@@ -2,6 +2,7 @@ import SwiftData
 import SwiftUI
 
 struct DashboardView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(AppRouter.self) private var router
     @Environment(AppState.self) private var appState
     @Query(sort: \CareerProfile.updatedAt, order: .reverse) private var profiles: [CareerProfile]
@@ -17,6 +18,7 @@ struct DashboardView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: RRSpacing.xl) {
                 welcome
+                prepareAction
                 if experiences.isEmpty, opportunities.isEmpty {
                     activationCard
                 } else {
@@ -27,6 +29,7 @@ struct DashboardView: View {
                     }
                     readinessOverview
                     nextBestAction
+                    savedRoles
                     recentStories
                 }
             }
@@ -36,7 +39,7 @@ struct DashboardView: View {
             .frame(maxWidth: 920)
             .frame(maxWidth: .infinity)
         }
-        .navigationTitle("Today")
+        .navigationTitle("Prepare")
         .screenBackground()
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -91,7 +94,7 @@ struct DashboardView: View {
                         .accessibilityLabel("Sample workspace")
                 }
             }
-            Text(displayName.isEmpty ? "Build an answer from something real." : "Ready for what’s next, \(firstName)?")
+            Text(displayName.isEmpty ? "Turn real experience into a ready answer." : "Ready for what’s next, \(firstName)?")
                 .font(.rrHero)
                 .fixedSize(horizontal: false, vertical: true)
             Text(todaySummary)
@@ -100,12 +103,49 @@ struct DashboardView: View {
         }
     }
 
+    private var prepareAction: some View {
+        VStack(alignment: .leading, spacing: RRSpacing.md) {
+            HStack(alignment: .top, spacing: RRSpacing.md) {
+                Image(systemName: "target")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(BrandTheme.violet)
+                    .frame(width: 52, height: 52)
+                    .background(BrandTheme.violetSoft, in: RoundedRectangle(cornerRadius: RRRadius.small))
+
+                VStack(alignment: .leading, spacing: RRSpacing.xs) {
+                    Text(activeOpportunity == nil ? "Prepare for a role" : "Prepare another answer")
+                        .font(.rrTitle)
+                    Text("Add your career history and a job ad. RoleReady will suggest grounded examples, ask only for missing details, and help you practise.")
+                        .font(.rrBody)
+                        .foregroundStyle(BrandTheme.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button {
+                appState.presentedSheet = .prepareForRole
+            } label: {
+                Label("Prepare for a role", systemImage: "arrow.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrimaryActionButtonStyle())
+            .accessibilityHint("Starts a guided flow using your real experience and a job advertisement")
+            .accessibilityIdentifier("prepare-for-role")
+
+            Label("Your information stays on this device by default. You approve every factual claim.", systemImage: "hand.raised.fill")
+                .font(.footnote)
+                .foregroundStyle(BrandTheme.inkMuted)
+                .accessibilityElement(children: .combine)
+        }
+        .cardSurface(tint: BrandTheme.amberSoft.opacity(0.42))
+    }
+
     private var activationCard: some View {
         EmptyStatePanel(
-            title: "Start with one useful story",
-            message: "Choose a project, challenge, achievement, or mistake you learnt from. Guided prompts will shape the facts into evidence you can reuse.",
+            title: "Prefer to build your examples first?",
+            message: "Capture one project, challenge, achievement, or lesson manually. You can connect it to a role whenever you are ready.",
             symbol: "square.stack.3d.up.fill",
-            actionTitle: "Capture my first story",
+            actionTitle: "Add an example manually",
             action: { appState.presentedSheet = .addStory }
         )
         .accessibilityIdentifier("dashboard-empty")
@@ -137,7 +177,10 @@ struct DashboardView: View {
                         .background(.white.opacity(0.15), in: Circle())
                 }
 
-                HStack(spacing: RRSpacing.lg) {
+                let metricsLayout = dynamicTypeSize.isAccessibilitySize
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: RRSpacing.sm))
+                    : AnyLayout(HStackLayout(spacing: RRSpacing.lg))
+                metricsLayout {
                     if let interviewDate = opportunity.interviewDate {
                         HeroMetric(value: relativeDate(interviewDate), label: interviewDate.formatted(date: .abbreviated, time: .shortened))
                     } else if let closingDate = opportunity.closingDate {
@@ -147,7 +190,7 @@ struct DashboardView: View {
                     HeroMetric(value: "\(practiceCount(for: opportunity))", label: "practice runs")
                 }
 
-                Label("Open pre-interview prep deck", systemImage: "rectangle.stack.fill")
+                Label("Continue preparing", systemImage: "rectangle.stack.fill")
                     .font(.rrHeadline)
                     .foregroundStyle(.white)
             }
@@ -157,6 +200,49 @@ struct DashboardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("active-role-card")
+    }
+
+    @ViewBuilder
+    private var savedRoles: some View {
+        if !opportunities.isEmpty {
+            VStack(alignment: .leading, spacing: RRSpacing.md) {
+                SectionHeading(title: "Roles", eyebrow: "SAVED", actionTitle: "See all") {
+                    router.navigate(to: .roles)
+                }
+
+                Button {
+                    if let opportunity = activeOpportunity ?? opportunities.first {
+                        router.navigate(to: .opportunity(opportunity.id))
+                    } else {
+                        router.navigate(to: .roles)
+                    }
+                } label: {
+                    HStack(spacing: RRSpacing.md) {
+                        Image(systemName: "briefcase.fill")
+                            .font(.headline)
+                            .foregroundStyle(BrandTheme.violet)
+                            .frame(width: 42, height: 42)
+                            .background(BrandTheme.violetSoft, in: RoundedRectangle(cornerRadius: RRRadius.small))
+                        VStack(alignment: .leading, spacing: RRSpacing.xxs) {
+                            Text(activeOpportunity?.roleTitle ?? opportunities.first?.roleTitle ?? "Saved roles")
+                                .font(.rrHeadline)
+                                .foregroundStyle(BrandTheme.ink)
+                                .multilineTextAlignment(.leading)
+                            Text(opportunities.count == 1 ? "1 role saved" : "\(opportunities.count) roles saved")
+                                .font(.subheadline)
+                                .foregroundStyle(BrandTheme.inkMuted)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .foregroundStyle(BrandTheme.inkMuted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .cardSurface(padding: RRSpacing.md)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("saved-roles-card")
+            }
+        }
     }
 
     private func reflectionHero(_ opportunity: Opportunity) -> some View {
@@ -261,7 +347,7 @@ struct DashboardView: View {
         if !experiences.isEmpty {
             VStack(alignment: .leading, spacing: RRSpacing.md) {
                 SectionHeading(title: "Recent stories", actionTitle: "See all") {
-                    appState.selectedTab = .evidence
+                    appState.selectedTab = .examples
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: RRSpacing.sm) {
@@ -302,8 +388,8 @@ struct DashboardView: View {
         if let activeOpportunity, let date = activeOpportunity.interviewDate {
             return "Your next interview is \(relativeDate(date).lowercased()). Focus on recall, not memorisation."
         }
-        if experiences.isEmpty { return "Capture one recent piece of work and let the evidence lead." }
-        return "Your evidence bank is building. Strengthen one story or add a role when you’re ready."
+        if experiences.isEmpty { return "Start with a role, résumé, or one example. You only need enough detail for one useful answer." }
+        return "Choose a role to find your strongest example, or keep strengthening your reusable library."
     }
 
     private func relativeDate(_ date: Date) -> String {
@@ -405,6 +491,8 @@ private struct DashboardMetric: View {
 }
 
 private struct StoryMiniCard: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     let experience: Experience
     let score: EvidenceScore
 
@@ -420,15 +508,16 @@ private struct StoryMiniCard: View {
                 .font(.rrHeadline)
                 .foregroundStyle(BrandTheme.ink)
                 .multilineTextAlignment(.leading)
-                .lineLimit(3)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 5 : 3)
             Text(experience.organisation)
                 .font(.subheadline)
                 .foregroundStyle(BrandTheme.inkMuted)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
             Spacer(minLength: 0)
             ConfidentialityBadge(level: experience.confidentiality)
         }
-        .frame(width: 240, height: 196, alignment: .leading)
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? 290 : 240, alignment: .leading)
+        .frame(minHeight: dynamicTypeSize.isAccessibilitySize ? 250 : 196, alignment: .leading)
         .cardSurface()
     }
 }

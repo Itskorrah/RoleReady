@@ -10,7 +10,7 @@ final class AppState {
         static let sampleWorkspace = "roleready.sample.enabled"
     }
 
-    var selectedTab: AppTab = .today
+    var selectedTab: AppTab = .prepare
     var presentedSheet: SheetDestination?
     var toast: ToastMessage?
     var hasCompletedOnboarding: Bool {
@@ -43,8 +43,10 @@ final class AppState {
         self.isUsingSampleWorkspace = selectedDefaults.bool(forKey: Key.sampleWorkspace)
     }
 
-    func completeOnboarding(usingSample: Bool) {
+    func completeOnboarding(usingSample: Bool, destination: SheetDestination? = nil) {
         isUsingSampleWorkspace = usingSample
+        selectedTab = .prepare
+        presentedSheet = destination
         hasCompletedOnboarding = true
     }
 
@@ -53,6 +55,8 @@ final class AppState {
     }
 
     func resetAfterDataDeletion() {
+        selectedTab = .prepare
+        presentedSheet = nil
         hasCompletedOnboarding = false
         isUsingSampleWorkspace = false
         hapticsEnabled = true

@@ -33,7 +33,7 @@ struct ExperienceEditorView: View {
     var body: some View {
         NavigationStack {
             editorContent
-                .navigationTitle(experienceID == nil ? "Add evidence" : "Edit evidence")
+                .navigationTitle(experienceID == nil ? "Add example" : "Edit example")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -83,7 +83,7 @@ struct ExperienceEditorView: View {
         } message: {
             Text("This story has not been saved.")
         }
-        .alert(issue?.title ?? "Evidence editor", isPresented: Binding(
+        .alert(issue?.title ?? "Example editor", isPresented: Binding(
             get: { issue != nil },
             set: { if !$0 { issue = nil } }
         )) {
@@ -100,7 +100,7 @@ struct ExperienceEditorView: View {
         case .loading:
             VStack(spacing: RRSpacing.md) {
                 ProgressView()
-                Text("Loading your evidence story…")
+                Text("Loading your example…")
                     .font(.rrBody)
                     .foregroundStyle(BrandTheme.inkMuted)
             }
@@ -559,7 +559,7 @@ struct ExperienceEditorView: View {
 
         do {
             guard let experience = try fetchExperience(id: experienceID) else {
-                loadState = .failed("This evidence record could not be found. It may have been deleted in another view.")
+                loadState = .failed("This example could not be found. It may have been deleted in another view.")
                 return
             }
             let loadedDraft = ExperienceEditorDraft(experience: experience)
@@ -665,7 +665,7 @@ struct ExperienceEditorView: View {
                     symbol: "exclamationmark.triangle.fill"
                 )
             } else {
-                appState.showToast(experienceID == nil ? "Evidence story added" : "Evidence story updated")
+                appState.showToast(experienceID == nil ? "Example added" : "Example updated")
             }
             dismiss()
         } catch {
@@ -732,7 +732,7 @@ private enum ExperienceEditorIssue: Identifiable {
     var message: String {
         switch self {
         case .storyMissing:
-            "This evidence record was deleted before your changes could be saved."
+            "This example was deleted before your changes could be saved."
         case .saveFailed(let detail):
             "Your editor remains open and your draft is unchanged. \(detail)"
         }
@@ -1066,7 +1066,7 @@ private struct ExperienceEditorValidator {
 
     func firstFocusField(for step: ExperienceEditorStep) -> ExperienceEditorFocusField? {
         guard let first = problems(for: step).first else { return nil }
-        switch first.field {
+        return switch first.field {
         case .title: .title
         case .organisation: .organisation
         case .situation: .situation

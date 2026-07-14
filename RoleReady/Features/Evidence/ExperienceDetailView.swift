@@ -205,6 +205,8 @@ private struct ExperienceDetailContent: View {
             .padding(.horizontal, RRSpacing.md)
             .padding(.top, RRSpacing.sm)
             .padding(.bottom, RRSpacing.xxl)
+            .frame(maxWidth: 820)
+            .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.immediately)
     }
