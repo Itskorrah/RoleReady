@@ -18,6 +18,9 @@ final class Experience {
     var capabilityRaw: String = ""
     var toolsRaw: String = ""
     var confidentialityRaw: String = Confidentiality.privateRecord.rawValue
+    var sourceID: UUID?
+    var sourceExcerpt: String = ""
+    var verificationStatusRaw: String = CareerRecordStatus.approved.rawValue
     var isApprovedForMatching: Bool = true
     var isSample: Bool = false
     var useCount: Int = 0
@@ -40,6 +43,9 @@ final class Experience {
         capabilities: [Capability],
         tools: [String],
         confidentiality: Confidentiality = .privateRecord,
+        sourceID: UUID? = nil,
+        sourceExcerpt: String = "",
+        verificationStatus: CareerRecordStatus = .approved,
         isApprovedForMatching: Bool = true,
         isSample: Bool = false,
         useCount: Int = 0,
@@ -61,6 +67,9 @@ final class Experience {
         self.capabilityRaw = ListCodec.encode(capabilities.map(\.rawValue))
         self.toolsRaw = ListCodec.encode(tools)
         self.confidentialityRaw = confidentiality.rawValue
+        self.sourceID = sourceID
+        self.sourceExcerpt = sourceExcerpt
+        self.verificationStatusRaw = verificationStatus.rawValue
         self.isApprovedForMatching = isApprovedForMatching
         self.isSample = isSample
         self.useCount = useCount
@@ -96,6 +105,11 @@ final class Experience {
     var confidentiality: Confidentiality {
         get { Confidentiality(rawValue: confidentialityRaw) ?? .privateRecord }
         set { confidentialityRaw = newValue.rawValue }
+    }
+
+    var verificationStatus: CareerRecordStatus {
+        get { CareerRecordStatus(rawValue: verificationStatusRaw) ?? .approved }
+        set { verificationStatusRaw = newValue.rawValue }
     }
 
     var searchableText: String {

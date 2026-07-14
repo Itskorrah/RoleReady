@@ -702,9 +702,19 @@ final class WorkspaceRestoreServiceTests: XCTestCase {
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([
             CareerProfile.self,
+            CareerSource.self,
+            CareerSourceSpan.self,
+            CareerPosition.self,
+            CareerEducation.self,
+            CareerCertification.self,
+            CareerSkill.self,
             Experience.self,
             Opportunity.self,
             JobRequirement.self,
+            ResumeVersion.self,
+            CoverLetter.self,
+            ApplicationActivity.self,
+            CareerReminder.self,
             GeneratedAnswer.self,
             PracticeSession.self,
             InterviewReflection.self

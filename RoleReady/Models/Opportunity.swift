@@ -7,10 +7,21 @@ final class Opportunity {
     var roleTitle: String = ""
     var organisation: String = ""
     var location: String = ""
+    var jobURL: String = ""
+    var sourceName: String = ""
     var sourceText: String = ""
     var statusRaw: String = OpportunityStatus.saved.rawValue
     var closingDate: Date?
+    var savedAt: Date?
+    var appliedAt: Date?
+    var followUpAt: Date?
+    var assessmentDate: Date?
     var interviewDate: Date?
+    var salaryRange: String = ""
+    var workArrangement: String = ""
+    var contactName: String = ""
+    var contactDetails: String = ""
+    var nextAction: String = ""
     var notes: String = ""
     var isSample: Bool = false
     var createdAt: Date = Date()
@@ -22,10 +33,21 @@ final class Opportunity {
         roleTitle: String,
         organisation: String,
         location: String,
+        jobURL: String = "",
+        sourceName: String = "",
         sourceText: String,
         status: OpportunityStatus,
         closingDate: Date? = nil,
+        savedAt: Date? = nil,
+        appliedAt: Date? = nil,
+        followUpAt: Date? = nil,
+        assessmentDate: Date? = nil,
         interviewDate: Date? = nil,
+        salaryRange: String = "",
+        workArrangement: String = "",
+        contactName: String = "",
+        contactDetails: String = "",
+        nextAction: String = "",
         notes: String = "",
         isSample: Bool = false,
         createdAt: Date = Date(),
@@ -36,10 +58,21 @@ final class Opportunity {
         self.roleTitle = roleTitle
         self.organisation = organisation
         self.location = location
+        self.jobURL = jobURL
+        self.sourceName = sourceName
         self.sourceText = sourceText
         self.statusRaw = status.rawValue
         self.closingDate = closingDate
+        self.savedAt = savedAt ?? createdAt
+        self.appliedAt = appliedAt
+        self.followUpAt = followUpAt
+        self.assessmentDate = assessmentDate
         self.interviewDate = interviewDate
+        self.salaryRange = salaryRange
+        self.workArrangement = workArrangement
+        self.contactName = contactName
+        self.contactDetails = contactDetails
+        self.nextAction = nextAction
         self.notes = notes
         self.isSample = isSample
         self.createdAt = createdAt

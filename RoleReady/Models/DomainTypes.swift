@@ -186,20 +186,43 @@ enum Capability: String, CaseIterable, Identifiable, Codable, Sendable {
 enum OpportunityStatus: String, CaseIterable, Identifiable, Codable, Sendable {
     case saved
     case preparing
+    case applied
+    case recruiterScreen
+    case assessment
     case interviewing
     case offer
+    case rejected
+    case withdrawn
     case closed
 
     var id: String { rawValue }
 
-    var title: String { rawValue.capitalized }
+    var title: String {
+        switch self {
+        case .saved: "Saved"
+        case .preparing: "Preparing"
+        case .applied: "Applied"
+        case .recruiterScreen: "Recruiter screen"
+        case .assessment: "Assessment"
+        case .interviewing: "Interviewing"
+        case .offer: "Offer"
+        case .rejected: "Not progressing"
+        case .withdrawn: "Withdrawn"
+        case .closed: "Archived"
+        }
+    }
 
     var symbol: String {
         switch self {
         case .saved: "bookmark.fill"
         case .preparing: "wand.and.stars"
+        case .applied: "paperplane.fill"
+        case .recruiterScreen: "phone.fill"
+        case .assessment: "checklist"
         case .interviewing: "person.2.fill"
         case .offer: "party.popper.fill"
+        case .rejected: "xmark.circle.fill"
+        case .withdrawn: "arrow.uturn.backward.circle.fill"
         case .closed: "archivebox.fill"
         }
     }
