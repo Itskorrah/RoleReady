@@ -36,6 +36,8 @@ struct EvidenceListView: View {
                             EvidenceRow(summary: summary)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(summary.experience.title)
+                        .accessibilityIdentifier("evidence.link.\(summary.experience.id.uuidString)")
                         .listRowInsets(.init(top: RRSpacing.xs, leading: RRSpacing.md, bottom: RRSpacing.xs, trailing: RRSpacing.md))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)

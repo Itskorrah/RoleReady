@@ -15,15 +15,12 @@ final class RoleReadyUITests: XCTestCase {
         XCTAssertTrue(element("active-role-card").waitForExistence(timeout: 4))
         capture("01-prepare-dashboard")
 
-        tapTab("My Examples")
-        XCTAssertTrue(element("evidence.overview").waitForExistence(timeout: 4))
-        let anyExampleRow = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "evidence.row."))
-            .firstMatch
-        XCTAssertTrue(anyExampleRow.waitForExistence(timeout: 3))
-        capture("02-my-examples")
+        tapTab("Career")
+        XCTAssertTrue(element("career.workspace").waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Senior Data Analyst"].firstMatch.waitForExistence(timeout: 3))
+        capture("02-career-workspace")
 
-        tapTab("Prepare")
+        tapTab("Today")
         tapAfterScrolling(app.buttons["saved-roles-card"])
         XCTAssertTrue(element("roleDetail.root").waitForExistence(timeout: 4))
         app.buttons["roleDetail.matchReport"].tap()
@@ -37,7 +34,7 @@ final class RoleReadyUITests: XCTestCase {
     func testPracticeDeckRevealsCuesWithoutPresentingAsLiveAssistance() {
         app = launchApp()
         startSampleWorkspace()
-        tapTab("Practise")
+        tapTab("Interview")
 
         XCTAssertTrue(element("practice-home").waitForExistence(timeout: 4))
         let start = app.buttons["Start a 5-minute practice"]
@@ -57,11 +54,7 @@ final class RoleReadyUITests: XCTestCase {
         app = launchApp()
         XCTAssertTrue(element("onboarding-promise").waitForExistence(timeout: 4))
         capture("00-onboarding")
-        let startBlankWorkspace = element("start-blank-workspace")
-        tapAfterScrolling(startBlankWorkspace)
-        if !element("preparation-flow").waitForExistence(timeout: 4) {
-            tapAfterScrolling(startBlankWorkspace)
-        }
+        tapAfterScrolling(element("start-interview-prep"))
         XCTAssertTrue(element("preparation-flow").waitForExistence(timeout: 8))
 
         type("career-history-text", """
@@ -157,7 +150,13 @@ final class RoleReadyUITests: XCTestCase {
     func testCanCaptureACompleteExampleFromBlankWorkspace() {
         app = launchApp()
         XCTAssertTrue(element("onboarding-promise").waitForExistence(timeout: 4))
-        tapAfterScrolling(element("start-example-library"))
+        tapAfterScrolling(element("start-blank-workspace"))
+        XCTAssertTrue(element("resumeIntake.root").waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.navigationBars["Prepare"].waitForExistence(timeout: 5))
+        app.buttons["global-compose"].tap()
+        XCTAssertTrue(app.buttons["Capture a story"].waitForExistence(timeout: 3))
+        app.buttons["Capture a story"].tap()
         XCTAssertTrue(element("experienceEditor.root").waitForExistence(timeout: 4))
 
         type("experienceEditor.title", "Recovered a delayed client report")
@@ -180,8 +179,105 @@ final class RoleReadyUITests: XCTestCase {
         tapAfterScrolling(element("experienceEditor.save"))
 
         XCTAssertTrue(app.navigationBars["Prepare"].waitForExistence(timeout: 4))
-        tapTab("My Examples")
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Recovered a delayed client report")).firstMatch.waitForExistence(timeout: 4))
+        tapTab("Career")
+        tapAfterScrolling(element("career.examples"))
+        XCTAssertTrue(app.navigationBars["My Examples"].waitForExistence(timeout: 4))
+        let savedStory = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "evidence.link.")
+        ).firstMatch
+        XCTAssertTrue(
+            savedStory.waitForExistence(timeout: 4)
+                && savedStory.label.contains("Recovered a delayed client report")
+        )
+    }
+
+    @MainActor
+    func testSampleResumeCanBeEditedAndPreviewedAsPDF() {
+        app = launchApp()
+        startSampleWorkspace()
+        tapTab("Résumés")
+
+        XCTAssertTrue(element("resumes.library").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Maya Chen · Technical baseline"].waitForExistence(timeout: 3))
+        tapAfterScrolling(element("resumes.version.50000000-0000-4000-8000-000000000006"))
+        XCTAssertTrue(element("resumeEditor.root").waitForExistence(timeout: 5))
+
+        tapAfterScrolling(app.buttons["Preview PDF"])
+        XCTAssertTrue(app.navigationBars["Résumé preview"].waitForExistence(timeout: 8))
+        capture("07-resume-pdf-preview")
+        app.buttons["Done"].tap()
+    }
+
+    @MainActor
+    func testSampleJobCreatesConnectedResumeLetterStatusAndReminder() {
+        app = launchApp()
+        startSampleWorkspace()
+        tapTab("Jobs")
+
+        XCTAssertTrue(element("roles.list").waitForExistence(timeout: 5))
+        tapAfterScrolling(element("roles.row.30000000-0000-4000-8000-000000000001"))
+        XCTAssertTrue(element("roleDetail.root").waitForExistence(timeout: 5))
+        tapAfterScrolling(element("roleDetail.applicationWorkspace"))
+        XCTAssertTrue(element("application.workspace").waitForExistence(timeout: 5))
+        capture("08-application-workspace")
+
+        tapAfterScrolling(app.buttons["Create a truthful tailored version"])
+        XCTAssertTrue(app.buttons["Maya Chen · Technical baseline"].waitForExistence(timeout: 3))
+        app.buttons["Maya Chen · Technical baseline"].tap()
+        XCTAssertTrue(element("resumeEditor.root").waitForExistence(timeout: 6))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Senior Data Engineer")).firstMatch.exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(element("application.workspace").waitForExistence(timeout: 5))
+
+        tapAfterScrolling(element("application.coverLetter.new"))
+        XCTAssertTrue(app.navigationBars["New cover letter"].waitForExistence(timeout: 4))
+        app.buttons["Create"].tap()
+        XCTAssertTrue(app.navigationBars["Cover letter"].waitForExistence(timeout: 5))
+        let regenerate = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "coverLetter.regenerate.")
+        ).firstMatch
+        XCTAssertTrue(scrollUntilHittable(regenerate))
+        regenerate.tap()
+        XCTAssertTrue(scrollUntilHittable(element("coverLetter.share")))
+        capture("09-grounded-cover-letter")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(element("application.workspace").waitForExistence(timeout: 5))
+
+        tapAfterScrolling(element("application.status"))
+        XCTAssertTrue(app.buttons["Applied"].waitForExistence(timeout: 3))
+        app.buttons["Applied"].tap()
+        tapAfterScrolling(app.buttons["Add reminder"])
+        XCTAssertTrue(app.navigationBars["New reminder"].waitForExistence(timeout: 4))
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Check application progress"].waitForExistence(timeout: 5))
+        capture("10-application-tracked")
+    }
+
+    @MainActor
+    func testSampleCoverLetterPrefersRoleEvidenceOverStandaloneSkills() {
+        app = launchApp()
+        startSampleWorkspace()
+        tapTab("Jobs")
+
+        tapAfterScrolling(element("roles.row.30000000-0000-4000-8000-000000000001"))
+        XCTAssertTrue(element("roleDetail.root").waitForExistence(timeout: 5))
+        tapAfterScrolling(element("roleDetail.applicationWorkspace"))
+        XCTAssertTrue(element("application.workspace").waitForExistence(timeout: 5))
+
+        tapAfterScrolling(element("application.coverLetter.new"))
+        XCTAssertTrue(app.navigationBars["New cover letter"].waitForExistence(timeout: 4))
+        app.buttons["Create"].tap()
+        XCTAssertTrue(app.navigationBars["Cover letter"].waitForExistence(timeout: 5))
+        let body = app.textViews.firstMatch
+        XCTAssertTrue(body.waitForExistence(timeout: 4))
+        let bodyText = body.value as? String ?? ""
+        XCTAssertTrue(bodyText.contains("Data Analyst at Harbour Health Analytics"))
+        XCTAssertFalse(bodyText.contains("includes SQL among my technical skills"))
+        let regenerate = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "coverLetter.regenerate.")
+        ).firstMatch
+        XCTAssertTrue(scrollUntilHittable(regenerate))
+        capture("09-grounded-cover-letter-final")
     }
 
     @MainActor
@@ -193,7 +289,7 @@ final class RoleReadyUITests: XCTestCase {
 
         XCTAssertTrue(element("onboarding-promise").waitForExistence(timeout: 4))
         XCTAssertTrue(element("onboarding-trust").exists)
-        tapAfterScrolling(element("start-blank-workspace"))
+        tapAfterScrolling(element("start-interview-prep"))
         XCTAssertTrue(element("preparation-flow").waitForExistence(timeout: 5))
         XCTAssertTrue(element("career-history-text").waitForExistence(timeout: 3))
     }
@@ -213,9 +309,9 @@ final class RoleReadyUITests: XCTestCase {
         app = launchApp()
         XCTAssertTrue(element("onboarding-promise").waitForExistence(timeout: 4))
         tapAfterScrolling(element("start-blank-workspace"))
-        XCTAssertTrue(element("preparation-flow").waitForExistence(timeout: 5))
+        XCTAssertTrue(element("resumeIntake.root").waitForExistence(timeout: 5))
 
-        tapAfterScrolling(element("import-career-document"))
+        tapAfterScrolling(element("resumeIntake.chooseDocument"))
 
         let cancel = app.buttons["Cancel"]
         XCTAssertTrue(
@@ -224,7 +320,7 @@ final class RoleReadyUITests: XCTestCase {
         )
         capture("resume-importer-presented")
         cancel.tap()
-        XCTAssertTrue(element("preparation-flow").waitForExistence(timeout: 4))
+        XCTAssertTrue(element("resumeIntake.root").waitForExistence(timeout: 4))
     }
 
     @MainActor
@@ -336,6 +432,7 @@ final class RoleReadyUITests: XCTestCase {
                 element("preparation-scroll"),
                 element("experienceEditor.form"),
                 app.tables.firstMatch,
+                app.collectionViews.firstMatch,
                 app.scrollViews.firstMatch
             ]
             if let scroller = scrollCandidates.first(where: { candidate in

@@ -53,13 +53,13 @@ $modelCount = 0
 foreach ($file in $swiftFiles) {
     $modelCount += [regex]::Matches([System.IO.File]::ReadAllText($file.FullName), "(?m)^@Model\s*$").Count
 }
-Test-Requirement ($modelCount -eq 7) "Exactly seven SwiftData models are declared"
+Test-Requirement ($modelCount -eq 17) "Exactly 17 SwiftData models are declared"
 
 $domainTypes = Read-RepositoryText "RoleReady/Models/DomainTypes.swift"
-foreach ($tabCase in @("prepare", "examples", "practise")) {
-    Test-Requirement ($domainTypes -match "(?m)^\s*case\s+$tabCase\s*$") "Prepare-first tab model includes '$tabCase'"
+foreach ($tabCase in @("today", "resumes", "jobs", "interview", "career")) {
+    Test-Requirement ($domainTypes -match "(?m)^\s*case\s+$tabCase\s*$") "Career-workspace tab model includes '$tabCase'"
 }
-Test-Requirement (-not ($domainTypes -match "(?m)^\s*case\s+(today|evidence|roles)\s*$")) "Obsolete primary tabs are absent"
+Test-Requirement (-not ($domainTypes -match "(?m)^\s*case\s+(prepare|examples|practise|evidence|roles)\s*$")) "Obsolete primary tabs are absent"
 
 $appShell = Read-RepositoryText "RoleReady/App/AppShell.swift"
 Test-Requirement ($appShell.Contains("TabView(selection:")) "App shell uses the tab model"

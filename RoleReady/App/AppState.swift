@@ -45,8 +45,10 @@ final class AppState {
         self.hasCompletedOnboarding = selectedDefaults.bool(forKey: Key.onboarding)
         self.hapticsEnabled = selectedDefaults.object(forKey: Key.haptics) as? Bool ?? true
         self.isUsingSampleWorkspace = selectedDefaults.bool(forKey: Key.sampleWorkspace)
-        self.languageProvider = selectedDefaults.string(forKey: Key.languageProvider)
-            .flatMap(LanguageProviderSelection.init(rawValue:)) ?? .automatic
+        self.languageProvider = isUITesting
+            ? .deterministic
+            : selectedDefaults.string(forKey: Key.languageProvider)
+                .flatMap(LanguageProviderSelection.init(rawValue:)) ?? .automatic
     }
 
     func completeOnboarding(usingSample: Bool, destination: SheetDestination? = nil) {

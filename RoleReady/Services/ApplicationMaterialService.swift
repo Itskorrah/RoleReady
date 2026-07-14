@@ -215,15 +215,24 @@ struct GroundedCoverLetterService: Sendable {
         let introduction = introductionText(request)
         paragraphs.append(GroundedParagraph(text: introduction, claimType: "motivation"))
 
-        let relevant = rankedEvidence(request.evidence, requirements: request.requirements)
+        let ranked = rankedEvidence(request.evidence, requirements: request.requirements)
+        let roleEvidence = ranked.filter { $0.organisation != "Approved skill" }
+        let relevant = roleEvidence.isEmpty ? ranked : roleEvidence
         for item in relevant.prefix(3) {
             guard !item.bullets.isEmpty else { continue }
-            var sentences = ["In my work as \(item.title) at \(item.organisation), I \(lowercasedOpening(item.bullets[0]))"]
-            for bullet in item.bullets.dropFirst().prefix(2) {
-                sentences.append("I also \(lowercasedOpening(bullet))")
+            let isSkillEvidence = item.organisation == "Approved skill"
+            var sentences: [String]
+            if isSkillEvidence {
+                sentences = ["My approved career record includes \(item.title) among my technical skills."]
+            } else {
+                sentences = ["In my work as \(item.title) at \(item.organisation), I \(lowercasedOpening(item.bullets[0]))"]
+                for bullet in item.bullets.dropFirst().prefix(2) {
+                    sentences.append("I also \(lowercasedOpening(bullet))")
+                }
             }
             if let requirement = closestRequirement(to: item, requirements: request.requirements) {
-                sentences.append("That approved experience is relevant to your need for \(lowercasedOpening(requirement.text))")
+                let subject = isSkillEvidence ? "This approved skill" : "This approved experience"
+                sentences.append("\(subject) is relevant to your requirement to \(lowercasedOpening(requirement.text))")
             }
             paragraphs.append(GroundedParagraph(
                 text: sentences.map(ensureSentence).joined(separator: " "),
@@ -273,18 +282,21 @@ struct GroundedCoverLetterService: Sendable {
         requirements: [JobRequirementSnapshot]
     ) -> [CareerEvidenceSnapshot] {
         let requirementText = requirements.flatMap { [$0.text] + $0.keywords }.joined(separator: " ").lowercased()
-        return evidence.sorted { lhs, rhs in
-            score(lhs.searchableText, against: requirementText) > score(rhs.searchableText, against: requirementText)
-        }
+        return evidence
+            .filter { score($0.searchableText, against: requirementText) > 0 }
+            .sorted { lhs, rhs in
+                score(lhs.searchableText, against: requirementText) > score(rhs.searchableText, against: requirementText)
+            }
     }
 
     private func closestRequirement(
         to evidence: CareerEvidenceSnapshot,
         requirements: [JobRequirementSnapshot]
     ) -> JobRequirementSnapshot? {
-        requirements.max { lhs, rhs in
+        guard let closest = requirements.max(by: { lhs, rhs in
             score(evidence.searchableText, against: lhs.text) < score(evidence.searchableText, against: rhs.text)
-        }
+        }) else { return nil }
+        return score(evidence.searchableText, against: closest.text) > 0 ? closest : nil
     }
 
     private func score(_ source: String, against target: String) -> Int {

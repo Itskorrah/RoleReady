@@ -2,58 +2,41 @@
 
 ## Product outcome
 
-Make RoleReady a private evidence-to-interview companion that gets a new user from career history and a job advertisement to one grounded, approved answer and a focused practice run in about five minutes.
+Make RoleReady an all-encompassing, private career workspace that turns one approved career record into strong résumés, job-specific applications, cover letters and interview preparation without inventing claims.
 
-## Decisions
+## Implemented direction
 
-- Make **Prepare**, **My Examples**, and **Practise** the three primary destinations. Keep role management inside Prepare instead of treating applications as a separate CRM.
-- Replace sample/manual-first activation with one guided preparation flow: career input -> unverified example review -> role requirements -> honest match -> missing details -> grounded answer -> approval -> practice.
-- Keep the seven-model SwiftData schema unchanged. Resume-derived examples remain value-type drafts until the user reviews them, avoiding a risky store migration.
-- Keep the deterministic local experience fully useful. Add a provider-neutral `LanguageService` boundary for later Apple on-device or explicitly permitted cloud language assistance; deterministic code remains authoritative for storage, privacy, matching, word limits, provenance, and approval.
-- Replace percentage-like match presentation with four honest tiers: direct, transferable, weak/partial, and no verified evidence. A relevance gate prevents readiness, recency, or ownership from manufacturing a match.
-- Reconcile every edited answer clause against source evidence. Materially edited or added clauses lose verified status until connected to a source and deterministically validated. Unsupported clauses can be saved as a draft but cannot be approved.
-- Upgrade export to a faithful version 2 archive and restore version 1 or 2 through validation, preview, add-only duplicate handling, dependency checks, and rollback on failure.
+- Five connected destinations: **Today**, **Résumés**, **Jobs**, **Interview** and **Career**.
+- PDF, `.docx`, RTF and text import with explicit review before extracted facts become approved evidence.
+- A reusable career profile with sources, source spans, work, education, certifications, skills and examples.
+- Multiple editable résumé versions, truthful job-specific tailoring, ATS-safe selectable-text PDF preview/export and share-sheet delivery.
+- Grounded cover letters with editable sections, targeted regeneration, warnings and an evidence trail.
+- A private application tracker with status history, notes, contacts, interview handoff and user-created local reminders.
+- Provider-neutral generation: deterministic local baseline, Apple Foundation Models when available, gated open-weight infrastructure and a disabled premium-cloud boundary.
+- Version 3 workspace backup and preview-first add-only restore, with backward compatibility for versions 1 and 2.
 
-## Implementation sequence
+## Trust decisions
 
-1. **Foundation and trust**
-   - Career-history ingestion value types and deterministic parser.
-   - Provider-neutral language-service protocol with deterministic implementation.
-   - Calibrated matcher and four-tier explanations.
-   - Clause reconciliation, approval decision, word-count and speaking-duration validation.
-   - Versioned export/restore preview and transactional add-only restore.
+- Imported content is a draft until the user approves it.
+- Every factual output is limited by approved evidence; irrelevant records are omitted instead of used as filler.
+- Match classifications are Direct, Transferable, Weak or partial, and No verified evidence rather than a misleading hiring percentage.
+- Deterministic application policy owns privacy, source selection, claim validation, approval, export and restore even when a language model proposes wording.
+- No model or provider credential is embedded. The free mode is useful with zero download and zero per-token cost.
+- Local open-weight models are optional experiments, not “unlimited free infrastructure”; storage, memory, battery, heat, runtime security and licence terms remain real costs.
 
-2. **Five-minute journey**
-   - Task-first onboarding with Prepare for a role as the primary action.
-   - Prepare dashboard and one guided modal flow using existing document import, job parsing, matching, answer, and practice foundations.
-   - Progressive example review and only the missing-detail prompts needed for a credible answer.
-   - Approval transitions directly into focused rehearsal.
+## Release gate completed in this implementation pass
 
-3. **Information architecture and durability**
-   - Three-tab shell: Prepare, My Examples, Practise.
-   - Existing roles, insights, profile, privacy, advanced editors, reflections, and sample workspace remain reachable as secondary tools.
-   - Settings gains restore preview, duplicate disclosure, explicit confirmation, and clear recovery errors.
+- Swift 6 build with complete strict concurrency and warnings-as-errors.
+- 103 unit tests passed across ingestion, persistence, matching, grounding, résumé and cover-letter generation, AI routing/evaluation, export and restore.
+- The complete nine-scenario UI suite passed, plus focused résumé, application, story-capture and cover-letter-grounding journeys.
+- A clean non-test install launched successfully on an iPhone 17 Pro Simulator running iOS 26.2.
+- No third-party package, API key, model weight or cloud dependency was added.
 
-4. **Release gate**
-   - Unit tests for ingestion, misleading match edges, word limits, edited provenance, archive migration, malformed/partial restore, and duplicates.
-   - Update UI tests for the first-use guided preparation path and remove stale timing assumptions.
-   - Build and run the full suite, then manually verify the critical path, dark mode, large Dynamic Type, VoiceOver labels, Reduce Motion, iPhone/iPad layout, and realistic input sizes in Simulator.
+## Remaining release work
 
-## Compatibility and safety
-
-- No API key, account, network entitlement, analytics, tracker, new dependency, self-hosted model, or sensitive logging.
-- Existing SwiftData entities and UUID references remain intact; richer claim metadata lives in the existing claim JSON field with backward-compatible decoding.
-- Version 1 archives restore conservatively: legacy answers return unapproved because their edit/provenance state cannot be proven.
-- Restore defaults to keeping local records when UUIDs collide and never clears the current workspace.
-- The pre-existing uncommitted Swift 6/document-import fixes are preserved.
-
-## Verification snapshot — 14 July 2026
-
-- The app builds for a generic iOS Simulator destination with Swift warnings treated as errors.
-- All 71 unit tests pass, covering ingestion, matching, grounding, edits, approval, export, restore, persistence, and practice policy.
-- All six UI scenarios pass together in the final iPhone simulator result bundle. The critical fresh-install flow now opens a supported claim's source sheet before approval and practice.
-- The sample workspace navigation and honest-match report pass on a 13-inch iPad simulator; onboarding was visually reviewed in light and dark appearance; accessibility XXXL remains navigable.
-- The supplied strategy board and final simulator screens were reviewed side by side. Visible internal matching stems and the overlong default answer found in that review were corrected.
-- `git diff --check` passes and the Xcode project file has not required dependency or target changes.
-
-Still required before an App Store release: hands-on physical-device checks for App Lock and notifications, a full VoiceOver and Reduce Motion pass, near-limit document performance testing, and a signed archive. Those release activities are outside this local implementation pass.
+- Run App Lock, notifications, background privacy shielding and Apple Foundation Models on supported physical iPhones.
+- Benchmark one exact quantised Qwen artifact and the Gemma comparison on device before exposing a download.
+- Complete legal review and explicit licence acceptance before distributing any third-party model weights.
+- Add a secure metered backend before enabling premium cloud models.
+- Complete VoiceOver, Reduce Motion, compact-iPhone, iPad split-view, near-limit document and signed App Store archive checks.
+- Consider native `.docx` output, account-based sync and email delivery only after the local product is stable.

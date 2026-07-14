@@ -2,13 +2,13 @@
 
 RoleReady processes career history, job advertisements, evidence matching, answer generation, practice, and interview reflections on the user's device. The shipped application does not create an account, send content to a RoleReady server, sell data, include advertising or analytics SDKs, or require a network connection.
 
-The current language provider is deterministic and local. The codebase defines extension points for a future Apple on-device or optional cloud provider, but neither is implemented or enabled. Adding a provider that transmits data would require an explicit privacy design and user-facing disclosure; it must not silently change the local-first default.
+Automatic language routing uses Apple's on-device Foundation Models only when iOS reports the system model available; otherwise it uses the deterministic local provider. The open-weight slot has no bundled runtime or weights. Premium cloud transport is disabled and has no embedded key. Any future cloud request requires a secure backend, explicit per-request consent, a visible data classification, and a block on Highly sensitive content; it cannot silently change the local-first default.
 
 ## What is stored
 
-SwiftData stores the user's profile, reviewed examples, saved roles and requirement themes, generated answers and source-claim metadata, practice sessions, and interview reflections in the app's local container.
+SwiftData stores the user's profile, extracted source text and spans, approved work, education, certification and skill records, reviewed examples, résumé and cover-letter versions, saved jobs and requirements, application activity and reminders, generated answers and source-claim metadata, practice sessions, and interview reflections in the app's local container.
 
-Career documents are read only after the user selects them through the system file importer. Career-history extraction produces temporary unverified drafts; RoleReady persists the reviewed example records the user chooses to save, not the original résumé file. Saved opportunities may retain the imported or pasted job-ad text. Imported documents and restore files are capped at 20 MB; imported text is capped at 250,000 characters.
+Career documents are read only after the user selects them through the system file importer. RoleReady does not retain the original binary document, but it can persist its extracted text, fingerprint and source spans so the user can audit where approved facts came from. Extracted facts remain unverified until review. Saved opportunities may retain imported or pasted job-ad text. Imported documents and restore files are capped at 20 MB; imported text is capped at 250,000 characters.
 
 The app target contains no `print`, `Logger`, analytics, or crash-reporting path that writes user career content. Tests use synthetic fixtures rather than real user data.
 
@@ -25,13 +25,14 @@ Changing an example's details or confidentiality can invalidate approval for ans
 
 ## Reduced-sensitivity and complete exports
 
-The default reduced-sensitivity version 2 JSON export includes Standard and Private examples. It excludes:
+The default reduced-sensitivity version 3 JSON export includes Standard and Private examples and sanitised career-workspace records. It excludes or redacts:
 
 - Confidential and Highly sensitive examples;
 - generated answers linked to excluded examples;
 - practice sessions linked to excluded answers;
 - complete job-advertisement source text;
 - private role notes; and
+- complete extracted résumé source text, source excerpts, profile contact details, application contact details and reminder notes;
 - all interview reflections.
 
 Role metadata and confirmed requirements remain included so the reduced export is still useful. A separate explicit complete-export action includes all four example levels, full opportunity text and notes, derived answers and practice sessions, and reflections.
@@ -40,7 +41,7 @@ Export is initiated by the user. RoleReady writes the temporary JSON file atomic
 
 ## Safe restore
 
-Settings can restore RoleReady version 1 or version 2 JSON exports up to 20 MB. Before any mutation, RoleReady checks the format identifier and version, validates record types and dependencies, detects duplicate UUIDs, identifies invalid records, checks confidentiality metadata, and revalidates whether saved answers still deserve approval. The preview shows records to add, duplicates to skip, records to reject, and sensitivity or migration warnings. The user must explicitly confirm.
+Settings can restore RoleReady version 1, 2 or 3 JSON exports up to 20 MB. Before any mutation, RoleReady checks the format identifier and version, validates record types and dependencies, detects duplicate UUIDs and cyclic résumé ancestry, identifies invalid records, checks confidentiality metadata, and revalidates whether saved answers still deserve approval. The preview shows records to add, duplicates to skip, records to reject, and sensitivity or migration warnings. The user must explicitly confirm.
 
 Restore is add-only:
 
@@ -67,10 +68,10 @@ If App Lock is enabled, authentication is performed by iOS using device-owner au
 
 The app covers its interface whenever it becomes inactive and marks the complete app shell as privacy-sensitive for supported system surfaces. Users can remove the sample workspace independently, delete all local data from Settings, cancel scheduled reminders, and disable App Lock at any time.
 
-Complete deletion removes all seven SwiftData record types, RoleReady preference flags, scheduled reminders, and RoleReady temporary export files. Files the user previously saved or shared outside the app's container are outside RoleReady's control and must be deleted from their destination separately.
+Complete deletion removes all 17 SwiftData record types, RoleReady preference flags, scheduled reminders, and temporary export files. The optional local-model slot is not exposed until installation and deletion controls are wired into Settings. Files the user previously saved or shared outside the app's container are outside RoleReady's control and must be deleted from their destination separately.
 
 iOS may include RoleReady data in an encrypted device backup according to the user's system settings. RoleReady does not run a separate cloud-backup service, and deleting local app data cannot remove backups the operating system created earlier.
 
 ## Notifications
 
-Notification permission is requested only when the user enables an interview reminder. Reminders are local notifications for upcoming interviews. RoleReady does not use push notifications or schedule closing-date reminders.
+Notification permission is requested only when the user explicitly saves a reminder. Reminders are local notifications for application checks, follow-ups, deadlines, interviews or user-defined tasks. RoleReady does not use push notifications or infer notification schedules from imported content.

@@ -196,6 +196,7 @@ struct CareerWorkspaceView: View {
             .cardSurface()
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("career.examples")
     }
 
     private var sourceSection: some View {

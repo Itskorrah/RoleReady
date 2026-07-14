@@ -101,6 +101,108 @@ final class ApplicationMaterialServiceTests: XCTestCase {
         XCTAssertTrue(result.grounding.paragraphs.allSatisfy { !$0.isApproved })
     }
 
+    func testCoverLetterPresentsSkillEvidenceAsASkillRatherThanAJob() {
+        let skill = CareerEvidenceSnapshot(
+            id: UUID(),
+            title: "SQL",
+            organisation: "Approved skill",
+            bullets: ["Skills: Python, SQL, data modelling."],
+            skills: ["SQL"],
+            capabilities: [Capability.technicalProblemSolving.rawValue]
+        )
+        let result = GroundedCoverLetterService().generate(CoverLetterDraftRequest(
+            candidateName: "Alex Morgan",
+            roleTitle: "Data Engineer",
+            organisation: "Example Co",
+            motivation: "",
+            tone: "Direct",
+            targetWords: 250,
+            requirements: [JobRequirementSnapshot(
+                id: UUID(),
+                text: "Build reliable SQL data pipelines",
+                keywords: ["SQL", "data pipelines"],
+                capabilities: [Capability.technicalProblemSolving.rawValue],
+                importance: 3
+            )],
+            evidence: [skill]
+        ))
+
+        XCTAssertTrue(result.body.contains("includes SQL among my technical skills"))
+        XCTAssertTrue(result.body.contains("is relevant to your requirement to build reliable SQL data pipelines"))
+        XCTAssertFalse(result.body.contains("SQL at Approved skill"))
+    }
+
+    func testCoverLetterOmitsEvidenceWithNoVerifiedConnectionToTheJob() {
+        let unrelated = CareerEvidenceSnapshot(
+            id: UUID(),
+            title: "Marketing Coordinator",
+            organisation: "Example Agency",
+            bullets: ["Prepared a print campaign using Photoshop."],
+            skills: ["Photoshop"],
+            capabilities: []
+        )
+        let result = GroundedCoverLetterService().generate(CoverLetterDraftRequest(
+            candidateName: "Alex Morgan",
+            roleTitle: "Platform Engineer",
+            organisation: "Example Co",
+            motivation: "",
+            tone: "Direct",
+            targetWords: 250,
+            requirements: [JobRequirementSnapshot(
+                id: UUID(),
+                text: "Lead Kubernetes platform migrations",
+                keywords: ["Kubernetes", "platform migration"],
+                capabilities: [Capability.leadership.rawValue],
+                importance: 3
+            )],
+            evidence: [unrelated]
+        ))
+
+        XCTAssertFalse(result.body.contains("Marketing Coordinator"))
+        XCTAssertFalse(result.body.contains("Photoshop"))
+        XCTAssertTrue(result.sourceEntityIDs.isEmpty)
+        XCTAssertTrue(result.grounding.validationWarnings.contains { $0.contains("not enough approved evidence") })
+    }
+
+    func testCoverLetterPrefersRoleEvidenceOverStandaloneSkillParagraphs() {
+        let role = CareerEvidenceSnapshot(
+            id: UUID(),
+            title: "Data Analyst",
+            organisation: "Harbour Analytics",
+            bullets: ["Built reliable Python data pipelines for reporting workflows."],
+            skills: ["Python", "SQL"],
+            capabilities: [Capability.technicalProblemSolving.rawValue]
+        )
+        let skill = CareerEvidenceSnapshot(
+            id: UUID(),
+            title: "SQL",
+            organisation: "Approved skill",
+            bullets: ["Skills: Python, SQL."],
+            skills: ["SQL"],
+            capabilities: [Capability.technicalProblemSolving.rawValue]
+        )
+        let result = GroundedCoverLetterService().generate(CoverLetterDraftRequest(
+            candidateName: "Alex Morgan",
+            roleTitle: "Data Engineer",
+            organisation: "Example Co",
+            motivation: "",
+            tone: "Direct",
+            targetWords: 250,
+            requirements: [JobRequirementSnapshot(
+                id: UUID(),
+                text: "Build reliable Python data pipelines",
+                keywords: ["Python", "data pipelines"],
+                capabilities: [Capability.technicalProblemSolving.rawValue],
+                importance: 3
+            )],
+            evidence: [skill, role]
+        ))
+
+        XCTAssertTrue(result.body.contains("Data Analyst at Harbour Analytics"))
+        XCTAssertFalse(result.body.contains("includes SQL among my technical skills"))
+        XCTAssertEqual(result.sourceEntityIDs, [role.id])
+    }
+
     func testClaimValidatorCatchesUnsupportedMetricsToolsAndOwnership() {
         let warnings = ClaimValidationService().validate(
             generatedText: "Led an AWS migration that reduced cost by 45%.",
