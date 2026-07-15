@@ -18,6 +18,10 @@ struct AppShell: View {
         .privacySensitive()
         .sheet(item: $appState.presentedSheet) { destination in
             switch destination {
+            case .resumeIntake:
+                ResumeIntakeView { _ in
+                    appState.selectedTab = .resumes
+                }
             case .prepareForRole:
                 PreparationFlowView()
             case .addStory:
@@ -78,9 +82,11 @@ private struct TabRoot: View {
     @ViewBuilder
     private var rootContent: some View {
         switch tab {
-        case .prepare: DashboardView()
-        case .examples: EvidenceListView()
-        case .practise: PracticeHomeView()
+        case .today: DashboardView()
+        case .resumes: ResumeLibraryView()
+        case .jobs: RoleListView()
+        case .interview: PracticeHomeView()
+        case .career: CareerWorkspaceView()
         }
     }
 
@@ -102,6 +108,10 @@ private struct TabRoot: View {
             AnswerStudioView(answerID: answerID)
         case .prepDeck(let opportunityID): PrepDeckView(opportunityID: opportunityID)
         case .reflection(let opportunityID): InterviewReflectionView(opportunityID: opportunityID)
+        case .resume(let versionID): ResumeEditorView(versionID: versionID)
+        case .applicationWorkspace(let opportunityID):
+            JobApplicationWorkspaceView(opportunityID: opportunityID)
+        case .examples: EvidenceListView()
         case .roles: RoleListView()
         case .profile: ProfileView()
         case .insights: InsightsView()
@@ -130,6 +140,11 @@ private struct ComposeMenu: View {
                 appState.presentedSheet = .addRole
             } label: {
                 Label("Add a role", systemImage: "briefcase.badge.plus")
+            }
+            Button {
+                appState.selectedTab = .resumes
+            } label: {
+                Label("Create a résumé", systemImage: "doc.badge.plus")
             }
             Button {
                 appState.presentedSheet = .addQuestion

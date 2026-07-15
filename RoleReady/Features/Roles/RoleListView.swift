@@ -391,9 +391,10 @@ private struct RoleListRow: View {
         switch opportunity.status {
         case .saved: BrandTheme.inkMuted
         case .preparing: BrandTheme.violet
+        case .applied, .recruiterScreen, .assessment: BrandTheme.violet
         case .interviewing: BrandTheme.amberText
         case .offer: BrandTheme.success
-        case .closed: BrandTheme.inkMuted
+        case .rejected, .withdrawn, .closed: BrandTheme.inkMuted
         }
     }
 

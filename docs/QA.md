@@ -4,7 +4,7 @@
 
 RoleReady uses complementary gates:
 
-1. `scripts/verify-windows.ps1` performs dependency-free repository checks for required files, the seven-model declaration, the Prepare/My Examples/Practise contract, project settings, asset metadata, global privacy-sensitive coverage, and absence of undeclared package dependencies.
+1. `scripts/verify-windows.ps1` performs dependency-free repository checks for required files, the 17-model declaration, the Today/Résumés/Jobs/Interview/Career contract, project settings, asset metadata, global privacy-sensitive coverage, and absence of undeclared package dependencies.
 2. Unit tests exercise deterministic product policy, parsing, matching, answer grounding, provenance, approval, persistence, export, and restore.
 3. UI tests exercise onboarding in light and dark appearance, the first-use preparation journey, source inspection, manual example capture, honest sample matching, practice, accessibility text sizing, and adaptive tab navigation.
 4. Manual Simulator and physical-device passes cover visual quality, operating-system permissions, App Lock, background shielding, notifications, and device-dependent accessibility behaviour.
@@ -98,8 +98,10 @@ The checked-in unit suites cover:
 - grounded answer formats, word-count limits, speaking duration, numeric and ownership validation;
 - source-claim reconciliation, unsupported edits, explicit source links, and deterministic approval;
 - approval invalidation after example or role revision;
-- reduced-sensitivity export, version 2 field fidelity, and dependent-record filtering;
-- version 1 and version 2 restore, duplicate handling, partial archives, malformed and future versions, dependency rejection, sensitivity metadata, profile safety, rollback guards, and restored-answer revalidation;
+- reduced-sensitivity export, version 3 career-workspace field fidelity, provenance sanitisation, and dependent-record filtering;
+- version 1, version 2 and version 3 restore, duplicate handling, cyclic résumé rejection, partial archives, malformed and future versions, dependency rejection, sensitivity metadata, profile safety, rollback guards, and restored-answer revalidation;
+- résumé intake, source spans, PDF rendering, job-specific tailoring, cover-letter grounding, section regeneration, application activity and reminder persistence;
+- deterministic, Apple, local open-weight and premium-cloud routing boundaries plus the repeatable AI evaluation harness;
 - SwiftData seed integrity, sample removal, preferences reset, and dependent-record cleanup; and
 - practice session and reflection associations.
 
@@ -109,9 +111,12 @@ The checked-in UI suite covers:
 - the complete fresh-workspace path from pasted career history and job text through draft review, honest matching, strengthening, grounded answer generation, opening a claim's supporting evidence, approval, and guided practice;
 - sample examples, saved roles, semantic match tiers, and absence of percentage-like hiring-probability copy;
 - approved practice cues and explicit pre-interview positioning; and
-- manual example capture and retrieval under My Examples;
+- manual example capture and retrieval under Career;
+- baseline résumé editing and PDF preview;
+- the connected application path through tailoring, cover letter, status and reminder creation;
+- focused verification that cover letters prefer relevant approved role evidence over redundant skill-only filler;
 - onboarding at accessibility XXXL; and
-- onboarding in dark appearance, plus adaptive Prepare/My Examples/Practise navigation on iPad.
+- onboarding in dark appearance, plus adaptive five-tab navigation on iPad.
 
 ## Critical-path manual script
 
@@ -119,8 +124,8 @@ Run this path on a clean Simulator after the automated suite:
 
 1. Delete the app from the Simulator and launch it.
 2. Confirm onboarding explains real evidence, user approval, local-by-default storage, and the no-live-assistance boundary.
-3. Choose **Prepare for a role**.
-4. Import or paste realistic career history and confirm extracted items are marked unverified.
+3. Choose **Import or build my résumé**.
+4. Import or paste realistic career history and confirm extracted items are marked unverified, with source excerpts available.
 5. Edit, reject, or combine drafts; approve one example for matching.
 6. Import or paste a realistic job advertisement and review its requirement themes.
 7. Confirm the recommendation is Direct, Transferable, Weak or partial, or No verified evidence with a plain-language reason.
@@ -129,9 +134,11 @@ Run this path on a clean Simulator after the automated suite:
 10. Add an unsupported number and stronger ownership statement. Confirm approval is revoked and the clauses require a source.
 11. Remove or truthfully resolve the unsupported edits, approve the answer, and enter guided practice.
 12. Reveal cues, run the timer, record confidence, and inspect likely follow-ups.
-13. Create both reduced-sensitivity and complete exports; inspect the reduced archive for omitted sensitive fields.
-14. Add a local record, restore the archive, review the preview, and confirm restore does not delete or overwrite the local record.
-15. Attempt malformed, wrong-identifier, future-version, duplicate, and partial archives; confirm clear errors and no workspace loss.
+13. Create a baseline résumé, preview its PDF, then tailor it for the saved job and review every evidence classification.
+14. Create and edit a cover letter; confirm it omits unrelated evidence, then update status and create a local reminder.
+15. Create both reduced-sensitivity and complete exports; inspect the reduced archive for omitted sensitive fields.
+16. Add a local record, restore the archive, review the preview, and confirm restore does not delete or overwrite the local record.
+17. Attempt malformed, wrong-identifier, future-version, duplicate, cyclic résumé, and partial archives; confirm clear errors and no workspace loss.
 
 ## Accessibility and visual matrix
 
@@ -159,11 +166,11 @@ Important actions must remain visible without gesture-only discovery, minimum to
 
 ## Release checklist
 
-- [ ] Windows repository verification passes with the Prepare/My Examples/Practise tab contract.
+- [ ] Windows repository verification passes with the five-tab career-workspace contract.
 - [ ] `bash scripts/test-ios.sh` passes on Xcode 26 with no warnings.
 - [ ] The complete first-use UI path passes from clean install through approved practice.
 - [ ] Reduced and complete export contents are manually inspected.
-- [ ] Version 1 and version 2 restore pass with duplicates, invalid records, and existing local data.
+- [ ] Version 1, version 2 and version 3 restore pass with duplicates, invalid records, and existing local data.
 - [ ] App Lock cancellation, lockout recovery, background privacy shield, local notifications, and complete deletion are verified on a physical device.
 - [ ] VoiceOver, accessibility XXXL, Reduce Motion, dark mode, and high-contrast appearance receive a final manual pass.
 - [ ] Compact iPhone and iPad portrait, landscape, and split-view layouts receive a final manual pass.

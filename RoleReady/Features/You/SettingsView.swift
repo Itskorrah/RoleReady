@@ -55,6 +55,41 @@ struct SettingsView: View {
             }
 
             Section {
+                ForEach(LanguageProviderSelection.allCases) { selection in
+                    let descriptor = LanguageProviderRegistry().descriptor(for: selection)
+                    Button {
+                        appState.languageProvider = selection
+                    } label: {
+                        HStack(alignment: .top, spacing: RRSpacing.sm) {
+                            Image(systemName: appState.languageProvider == selection ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(appState.languageProvider == selection ? BrandTheme.violet : BrandTheme.inkMuted)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(selection.title)
+                                    .foregroundStyle(BrandTheme.ink)
+                                Text(descriptor.modelName)
+                                    .font(.rrCaption)
+                                    .foregroundStyle(BrandTheme.inkMuted)
+                                Text(descriptor.isAvailable ? descriptor.privacySummary : descriptor.unavailableReason ?? "Unavailable")
+                                    .font(.caption)
+                                    .foregroundStyle(descriptor.isAvailable ? BrandTheme.tealText : BrandTheme.inkMuted)
+                            }
+                            Spacer(minLength: 0)
+                            if descriptor.requiresDownload {
+                                Image(systemName: "arrow.down.circle")
+                                    .foregroundStyle(BrandTheme.inkMuted)
+                            }
+                        }
+                    }
+                    .disabled(!descriptor.isAvailable)
+                    .accessibilityIdentifier("settings.ai.\(selection.rawValue)")
+                }
+            } header: {
+                Text("AI assistance")
+            } footer: {
+                Text("Automatic never sends career data off-device. Apple’s model is used only when available; RoleReady’s deterministic grounding and approval rules remain authoritative. Premium cloud requires a secure backend and explicit per-request consent.")
+            }
+
+            Section {
                 Toggle("Include all sensitive data", isOn: $includeConfidential)
                     .tint(BrandTheme.warning)
                 Button {
@@ -541,9 +576,19 @@ private struct RestoreCountSection: View {
     private var rows: [RestoreCountRow] {
         [
             RestoreCountRow(title: "Profile", value: counts.profiles),
+            RestoreCountRow(title: "Career sources", value: counts.careerSources),
+            RestoreCountRow(title: "Source links", value: counts.sourceSpans),
+            RestoreCountRow(title: "Employment and projects", value: counts.positions),
+            RestoreCountRow(title: "Education", value: counts.education),
+            RestoreCountRow(title: "Certifications", value: counts.certifications),
+            RestoreCountRow(title: "Career skills", value: counts.careerSkills),
             RestoreCountRow(title: "Examples", value: counts.experiences),
             RestoreCountRow(title: "Roles", value: counts.opportunities),
             RestoreCountRow(title: "Requirements", value: counts.requirements),
+            RestoreCountRow(title: "Résumé versions", value: counts.resumes),
+            RestoreCountRow(title: "Cover letters", value: counts.coverLetters),
+            RestoreCountRow(title: "Application updates", value: counts.activities),
+            RestoreCountRow(title: "Reminders", value: counts.reminders),
             RestoreCountRow(title: "Answers", value: counts.answers),
             RestoreCountRow(title: "Practice sessions", value: counts.practiceSessions),
             RestoreCountRow(title: "Interview reflections", value: counts.reflections)

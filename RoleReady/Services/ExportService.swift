@@ -3,7 +3,7 @@ import SwiftData
 
 struct RoleReadyExport: Codable {
     static let formatIdentifier = "com.roleready.export"
-    static let formatVersion = 2
+    static let formatVersion = 3
 
     let identifier: String
     let version: Int
@@ -16,16 +16,34 @@ struct RoleReadyExport: Codable {
     let answers: [AnswerDTO]
     let practiceSessions: [PracticeSessionDTO]
     let reflections: [ReflectionDTO]
+    let careerSources: [CareerSourceDTO]
+    let sourceSpans: [SourceSpanDTO]
+    let positions: [PositionDTO]
+    let education: [EducationDTO]
+    let certifications: [CertificationDTO]
+    let careerSkills: [CareerSkillDTO]
+    let resumes: [ResumeDTO]
+    let coverLetters: [CoverLetterDTO]
+    let activities: [ActivityDTO]
+    let reminders: [ReminderDTO]
 
     struct ProfileDTO: Codable {
         let id: UUID
         let name: String
+        let email: String?
+        let phone: String?
+        let location: String?
+        let linkedIn: String?
+        let portfolio: String?
         let headline: String
         let professionalSummary: String
         let currentOrganisation: String
         let targetRoles: [String]
         let skills: [String]
         let careerGoal: String
+        let sourceID: UUID?
+        let verificationStatus: String?
+        let confidentiality: String?
         let isSample: Bool?
         let createdAt: Date?
         let updatedAt: Date?
@@ -47,6 +65,9 @@ struct RoleReadyExport: Codable {
         let capabilities: [String]
         let tools: [String]
         let confidentiality: String
+        let sourceID: UUID?
+        let sourceExcerpt: String?
+        let verificationStatus: String?
         let isApprovedForMatching: Bool?
         let isSample: Bool?
         let useCount: Int?
@@ -59,10 +80,21 @@ struct RoleReadyExport: Codable {
         let roleTitle: String
         let organisation: String
         let location: String
+        let jobURL: String?
+        let sourceName: String?
         let sourceText: String
         let status: String
         let closingDate: Date?
+        let savedAt: Date?
+        let appliedAt: Date?
+        let followUpAt: Date?
+        let assessmentDate: Date?
         let interviewDate: Date?
+        let salaryRange: String?
+        let workArrangement: String?
+        let contactName: String?
+        let contactDetails: String?
+        let nextAction: String?
         let notes: String
         let contentUpdatedAt: Date
         let isSample: Bool?
@@ -129,6 +161,170 @@ struct RoleReadyExport: Codable {
         let practisedAt: Date
     }
 
+    struct CareerSourceDTO: Codable {
+        let id: UUID
+        let kind: String
+        let name: String
+        let filename: String
+        let contentType: String
+        let rawText: String
+        let fingerprint: String
+        let confidentiality: String
+        let isSample: Bool
+        let importedAt: Date
+        let updatedAt: Date
+    }
+
+    struct SourceSpanDTO: Codable {
+        let id: UUID
+        let sourceID: UUID
+        let entityID: UUID
+        let entityType: String
+        let fieldPath: String
+        let startOffset: Int
+        let endOffset: Int
+        let excerpt: String
+        let confidence: Double
+        let isApproved: Bool
+        let createdAt: Date
+    }
+
+    struct PositionDTO: Codable {
+        let id: UUID
+        let sourceID: UUID?
+        let title: String
+        let organisation: String
+        let location: String
+        let employmentType: String
+        let startDate: Date?
+        let endDate: Date?
+        let isCurrent: Bool
+        let summary: String
+        let bullets: [String]
+        let skills: [String]
+        let sourceExcerpt: String
+        let verificationStatus: String
+        let confidentiality: String
+        let approvedAt: Date?
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+    }
+
+    struct EducationDTO: Codable {
+        let id: UUID
+        let sourceID: UUID?
+        let institution: String
+        let qualification: String
+        let fieldOfStudy: String
+        let location: String
+        let startDate: Date?
+        let endDate: Date?
+        let details: [String]
+        let sourceExcerpt: String
+        let verificationStatus: String
+        let confidentiality: String
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+    }
+
+    struct CertificationDTO: Codable {
+        let id: UUID
+        let sourceID: UUID?
+        let name: String
+        let issuer: String
+        let issuedAt: Date?
+        let expiresAt: Date?
+        let credentialID: String
+        let credentialURL: String
+        let sourceExcerpt: String
+        let verificationStatus: String
+        let confidentiality: String
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+    }
+
+    struct CareerSkillDTO: Codable {
+        let id: UUID
+        let sourceID: UUID?
+        let name: String
+        let category: String
+        let level: String
+        let yearsExperience: Double
+        let lastUsedAt: Date?
+        let sourceExcerpt: String
+        let verificationStatus: String
+        let confidentiality: String
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+    }
+
+    struct ResumeDTO: Codable {
+        let id: UUID
+        let parentVersionID: UUID?
+        let sourceID: UUID?
+        let opportunityID: UUID?
+        let name: String
+        let targetRole: String
+        let targetOrganisation: String
+        let template: String
+        let status: String
+        let document: ResumeDocument
+        let tailoringReport: TailoringReport
+        let isBaseline: Bool
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+        let lastExportedAt: Date?
+    }
+
+    struct CoverLetterDTO: Codable {
+        let id: UUID
+        let opportunityID: UUID
+        let resumeVersionID: UUID?
+        let title: String
+        let body: String
+        let grounding: CoverLetterGrounding
+        let generator: String
+        let isUserEdited: Bool
+        let validationWarnings: [String]
+        let sourceEntityIDs: [UUID]
+        let status: String
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+    }
+
+    struct ActivityDTO: Codable {
+        let id: UUID
+        let opportunityID: UUID
+        let kind: String
+        let title: String
+        let notes: String
+        let occurredAt: Date
+        let isSample: Bool
+        let createdAt: Date
+    }
+
+    struct ReminderDTO: Codable {
+        let id: UUID
+        let opportunityID: UUID?
+        let activityID: UUID?
+        let kind: String
+        let title: String
+        let notes: String
+        let dueAt: Date
+        let notificationIdentifier: String
+        let isCompleted: Bool
+        let completedAt: Date?
+        let isSample: Bool
+        let createdAt: Date
+        let updatedAt: Date
+    }
+
     init(
         identifier: String,
         version: Int,
@@ -140,7 +336,17 @@ struct RoleReadyExport: Codable {
         requirements: [RequirementDTO],
         answers: [AnswerDTO],
         practiceSessions: [PracticeSessionDTO],
-        reflections: [ReflectionDTO]
+        reflections: [ReflectionDTO],
+        careerSources: [CareerSourceDTO] = [],
+        sourceSpans: [SourceSpanDTO] = [],
+        positions: [PositionDTO] = [],
+        education: [EducationDTO] = [],
+        certifications: [CertificationDTO] = [],
+        careerSkills: [CareerSkillDTO] = [],
+        resumes: [ResumeDTO] = [],
+        coverLetters: [CoverLetterDTO] = [],
+        activities: [ActivityDTO] = [],
+        reminders: [ReminderDTO] = []
     ) {
         self.identifier = identifier
         self.version = version
@@ -153,6 +359,16 @@ struct RoleReadyExport: Codable {
         self.answers = answers
         self.practiceSessions = practiceSessions
         self.reflections = reflections
+        self.careerSources = careerSources
+        self.sourceSpans = sourceSpans
+        self.positions = positions
+        self.education = education
+        self.certifications = certifications
+        self.careerSkills = careerSkills
+        self.resumes = resumes
+        self.coverLetters = coverLetters
+        self.activities = activities
+        self.reminders = reminders
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -167,6 +383,16 @@ struct RoleReadyExport: Codable {
         case answers
         case practiceSessions
         case reflections
+        case careerSources
+        case sourceSpans
+        case positions
+        case education
+        case certifications
+        case careerSkills
+        case resumes
+        case coverLetters
+        case activities
+        case reminders
     }
 
     init(from decoder: Decoder) throws {
@@ -182,6 +408,16 @@ struct RoleReadyExport: Codable {
         answers = try container.decodeIfPresent([AnswerDTO].self, forKey: .answers) ?? []
         practiceSessions = try container.decodeIfPresent([PracticeSessionDTO].self, forKey: .practiceSessions) ?? []
         reflections = try container.decodeIfPresent([ReflectionDTO].self, forKey: .reflections) ?? []
+        careerSources = try container.decodeIfPresent([CareerSourceDTO].self, forKey: .careerSources) ?? []
+        sourceSpans = try container.decodeIfPresent([SourceSpanDTO].self, forKey: .sourceSpans) ?? []
+        positions = try container.decodeIfPresent([PositionDTO].self, forKey: .positions) ?? []
+        education = try container.decodeIfPresent([EducationDTO].self, forKey: .education) ?? []
+        certifications = try container.decodeIfPresent([CertificationDTO].self, forKey: .certifications) ?? []
+        careerSkills = try container.decodeIfPresent([CareerSkillDTO].self, forKey: .careerSkills) ?? []
+        resumes = try container.decodeIfPresent([ResumeDTO].self, forKey: .resumes) ?? []
+        coverLetters = try container.decodeIfPresent([CoverLetterDTO].self, forKey: .coverLetters) ?? []
+        activities = try container.decodeIfPresent([ActivityDTO].self, forKey: .activities) ?? []
+        reminders = try container.decodeIfPresent([ReminderDTO].self, forKey: .reminders) ?? []
     }
 }
 
@@ -214,6 +450,26 @@ struct ExportService {
                 updatedAt: item.updatedAt
             )
         }
+        let careerSources = try context.fetch(FetchDescriptor<CareerSource>())
+        let sourceSpans = includeConfidential
+            ? try context.fetch(FetchDescriptor<CareerSourceSpan>())
+            : []
+        let positions = try context.fetch(FetchDescriptor<CareerPosition>()).filter {
+            includeConfidential || $0.confidentiality < .confidential
+        }
+        let education = try context.fetch(FetchDescriptor<CareerEducation>()).filter {
+            includeConfidential || $0.confidentiality < .confidential
+        }
+        let certifications = try context.fetch(FetchDescriptor<CareerCertification>()).filter {
+            includeConfidential || $0.confidentiality < .confidential
+        }
+        let careerSkills = try context.fetch(FetchDescriptor<CareerSkill>()).filter {
+            includeConfidential || $0.confidentiality < .confidential
+        }
+        let resumes = try context.fetch(FetchDescriptor<ResumeVersion>())
+        let coverLetters = try context.fetch(FetchDescriptor<CoverLetter>())
+        let activities = try context.fetch(FetchDescriptor<ApplicationActivity>())
+        let reminders = try context.fetch(FetchDescriptor<CareerReminder>())
 
         let export = RoleReadyExport(
             identifier: RoleReadyExport.formatIdentifier,
@@ -224,12 +480,20 @@ struct ExportService {
                 .init(
                     id: profile.id,
                     name: profile.name,
+                    email: profile.email,
+                    phone: profile.phone,
+                    location: profile.location,
+                    linkedIn: profile.linkedIn,
+                    portfolio: profile.portfolio,
                     headline: profile.headline,
                     professionalSummary: profile.professionalSummary,
                     currentOrganisation: profile.currentOrganisation,
                     targetRoles: profile.targetRoles,
                     skills: profile.skills,
                     careerGoal: profile.careerGoal,
+                    sourceID: profile.sourceID,
+                    verificationStatus: profile.verificationStatus.rawValue,
+                    confidentiality: profile.confidentiality.rawValue,
                     isSample: profile.isSample,
                     createdAt: profile.createdAt,
                     updatedAt: profile.updatedAt
@@ -252,6 +516,9 @@ struct ExportService {
                     capabilities: item.capabilities.map(\.rawValue),
                     tools: item.tools,
                     confidentiality: item.confidentiality.rawValue,
+                    sourceID: item.sourceID,
+                    sourceExcerpt: includeConfidential ? item.sourceExcerpt : "",
+                    verificationStatus: item.verificationStatus.rawValue,
                     isApprovedForMatching: item.isApprovedForMatching,
                     isSample: item.isSample,
                     useCount: item.useCount,
@@ -265,10 +532,21 @@ struct ExportService {
                     roleTitle: item.roleTitle,
                     organisation: item.organisation,
                     location: item.location,
+                    jobURL: item.jobURL,
+                    sourceName: item.sourceName,
                     sourceText: includeConfidential ? item.sourceText : "",
                     status: item.status.rawValue,
                     closingDate: item.closingDate,
+                    savedAt: item.savedAt,
+                    appliedAt: item.appliedAt,
+                    followUpAt: item.followUpAt,
+                    assessmentDate: item.assessmentDate,
                     interviewDate: item.interviewDate,
+                    salaryRange: item.salaryRange,
+                    workArrangement: item.workArrangement,
+                    contactName: includeConfidential ? item.contactName : "",
+                    contactDetails: includeConfidential ? item.contactDetails : "",
+                    nextAction: item.nextAction,
                     notes: includeConfidential ? item.notes : "",
                     contentUpdatedAt: item.contentUpdatedAt,
                     isSample: item.isSample,
@@ -325,7 +603,181 @@ struct ExportService {
                     practisedAt: item.practisedAt
                 )
             },
-            reflections: reflections
+            reflections: reflections,
+            careerSources: careerSources.map { item in
+                .init(
+                    id: item.id,
+                    kind: item.kind.rawValue,
+                    name: item.name,
+                    filename: item.filename,
+                    contentType: item.contentType,
+                    rawText: includeConfidential ? item.rawText : "",
+                    fingerprint: item.fingerprint,
+                    confidentiality: item.confidentiality.rawValue,
+                    isSample: item.isSample,
+                    importedAt: item.importedAt,
+                    updatedAt: item.updatedAt
+                )
+            },
+            sourceSpans: sourceSpans.map { item in
+                .init(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    entityID: item.entityID,
+                    entityType: item.entityType,
+                    fieldPath: item.fieldPath,
+                    startOffset: item.startOffset,
+                    endOffset: item.endOffset,
+                    excerpt: item.excerpt,
+                    confidence: item.confidence,
+                    isApproved: item.isApproved,
+                    createdAt: item.createdAt
+                )
+            },
+            positions: positions.map { item in
+                .init(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    title: item.title,
+                    organisation: item.organisation,
+                    location: item.location,
+                    employmentType: item.employmentType.rawValue,
+                    startDate: item.startDate,
+                    endDate: item.endDate,
+                    isCurrent: item.isCurrent,
+                    summary: item.summary,
+                    bullets: item.bullets,
+                    skills: item.skills,
+                    sourceExcerpt: includeConfidential ? item.sourceExcerpt : "",
+                    verificationStatus: item.verificationStatus.rawValue,
+                    confidentiality: item.confidentiality.rawValue,
+                    approvedAt: item.approvedAt,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
+            },
+            education: education.map { item in
+                .init(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    institution: item.institution,
+                    qualification: item.qualification,
+                    fieldOfStudy: item.fieldOfStudy,
+                    location: item.location,
+                    startDate: item.startDate,
+                    endDate: item.endDate,
+                    details: item.details,
+                    sourceExcerpt: includeConfidential ? item.sourceExcerpt : "",
+                    verificationStatus: item.verificationStatus.rawValue,
+                    confidentiality: item.confidentiality.rawValue,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
+            },
+            certifications: certifications.map { item in
+                .init(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    name: item.name,
+                    issuer: item.issuer,
+                    issuedAt: item.issuedAt,
+                    expiresAt: item.expiresAt,
+                    credentialID: item.credentialID,
+                    credentialURL: item.credentialURL,
+                    sourceExcerpt: includeConfidential ? item.sourceExcerpt : "",
+                    verificationStatus: item.verificationStatus.rawValue,
+                    confidentiality: item.confidentiality.rawValue,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
+            },
+            careerSkills: careerSkills.map { item in
+                .init(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    name: item.name,
+                    category: item.category,
+                    level: item.level.rawValue,
+                    yearsExperience: item.yearsExperience,
+                    lastUsedAt: item.lastUsedAt,
+                    sourceExcerpt: includeConfidential ? item.sourceExcerpt : "",
+                    verificationStatus: item.verificationStatus.rawValue,
+                    confidentiality: item.confidentiality.rawValue,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
+            },
+            resumes: resumes.map { item in
+                .init(
+                    id: item.id,
+                    parentVersionID: item.parentVersionID,
+                    sourceID: item.sourceID,
+                    opportunityID: item.opportunityID,
+                    name: item.name,
+                    targetRole: item.targetRole,
+                    targetOrganisation: item.targetOrganisation,
+                    template: item.template.rawValue,
+                    status: item.status.rawValue,
+                    document: item.document,
+                    tailoringReport: item.tailoringReport,
+                    isBaseline: item.isBaseline,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt,
+                    lastExportedAt: item.lastExportedAt
+                )
+            },
+            coverLetters: coverLetters.map { item in
+                .init(
+                    id: item.id,
+                    opportunityID: item.opportunityID,
+                    resumeVersionID: item.resumeVersionID,
+                    title: item.title,
+                    body: item.body,
+                    grounding: item.grounding,
+                    generator: item.generator,
+                    isUserEdited: item.isUserEdited,
+                    validationWarnings: item.validationWarnings,
+                    sourceEntityIDs: item.sourceEntityIDs,
+                    status: item.status.rawValue,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
+            },
+            activities: activities.map { item in
+                .init(
+                    id: item.id,
+                    opportunityID: item.opportunityID,
+                    kind: item.kind.rawValue,
+                    title: item.title,
+                    notes: includeConfidential ? item.notes : "",
+                    occurredAt: item.occurredAt,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt
+                )
+            },
+            reminders: reminders.map { item in
+                .init(
+                    id: item.id,
+                    opportunityID: item.opportunityID,
+                    activityID: item.activityID,
+                    kind: item.kind.rawValue,
+                    title: item.title,
+                    notes: includeConfidential ? item.notes : "",
+                    dueAt: item.dueAt,
+                    notificationIdentifier: "",
+                    isCompleted: item.isCompleted,
+                    completedAt: item.completedAt,
+                    isSample: item.isSample,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt
+                )
+            }
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

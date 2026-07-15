@@ -27,6 +27,7 @@ struct AnswerStudioView: View {
     @State private var selectedClaim: AnswerClaim?
     @State private var errorMessage: String?
     @State private var isSaving = false
+    @State private var isGenerating = false
     @State private var pendingConfirmation: AnswerStudioConfirmation?
     @State private var baselineSnapshot: AnswerEditSnapshot?
     @State private var reconciledClaims: [AnswerClaim] = []
@@ -225,10 +226,17 @@ struct AnswerStudioView: View {
             }
 
             Button(action: requestGeneration) {
-                Label(draft == nil ? "Create grounded answer" : "Regenerate from source", systemImage: "wand.and.stars")
+                if isGenerating {
+                    HStack {
+                        ProgressView().tint(.white)
+                        Text("Creating grounded answer…")
+                    }
+                } else {
+                    Label(draft == nil ? "Create grounded answer" : "Regenerate from source", systemImage: "wand.and.stars")
+                }
             }
             .buttonStyle(PrimaryActionButtonStyle())
-            .disabled(selectedExperience == nil || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(isGenerating || selectedExperience == nil || question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityIdentifier("generate-answer")
         }
     }
@@ -676,27 +684,39 @@ struct AnswerStudioView: View {
 
     private func generate() {
         guard let selectedExperience else { return }
-        do {
-            let newDraft = try engine.generate(
-                question: question,
-                from: selectedExperience,
-                format: format,
-                audience: audience,
-                tone: tone,
-                roleTitle: selectedOpportunity?.roleTitle
-            )
-            draft = newDraft
-            editedContent = newDraft.content
-            reconciledClaims = newDraft.claims
-            sourceOverrides = [:]
-            answerWasUserEdited = false
-            factsConfirmed = false
-            approvedContent = ""
-            generatedInputs = currentInputs
-            HapticService.success(enabled: appState.hapticsEnabled)
-        } catch {
-            errorMessage = error.localizedDescription
-            HapticService.warning(enabled: appState.hapticsEnabled)
+        let request = AnswerCompositionRequest(
+            question: question,
+            experience: GroundedExperience(selectedExperience),
+            format: format,
+            audience: audience,
+            tone: tone,
+            roleTitle: selectedOpportunity?.roleTitle
+        )
+        isGenerating = true
+        Task { @MainActor in
+            defer { isGenerating = false }
+            do {
+                let service = LanguageProviderRegistry().resolvedService(for: appState.languageProvider)
+                let newDraft: GeneratedDraft
+                do {
+                    newDraft = try await service.composeAnswer(request)
+                } catch where service.descriptor.kind != .deterministicLocal {
+                    newDraft = try await DeterministicLanguageService().composeAnswer(request)
+                    appState.showToast("Used private basic fallback", symbol: "shield.fill")
+                }
+                draft = newDraft
+                editedContent = newDraft.content
+                reconciledClaims = newDraft.claims
+                sourceOverrides = [:]
+                answerWasUserEdited = false
+                factsConfirmed = false
+                approvedContent = ""
+                generatedInputs = currentInputs
+                HapticService.success(enabled: appState.hapticsEnabled)
+            } catch {
+                errorMessage = error.localizedDescription
+                HapticService.warning(enabled: appState.hapticsEnabled)
+            }
         }
     }
 

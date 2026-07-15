@@ -2,7 +2,7 @@
 
 ## Purpose
 
-RoleReady is a private evidence-to-interview companion. In simple terms, it helps people turn things they have genuinely done into concise answers for a specific role, then verify and practise those answers.
+RoleReady is a private career workspace. It helps people turn things they have genuinely done into strong résumés, truthful job applications, cover letters and concise interview answers, then verify, track and practise them.
 
 The problem is not a lack of generic writing tools. Applicants often have useful experience scattered through résumés, old applications, project notes, and memory; struggle to select the strongest example for a requirement; and cannot easily tell whether generated wording has overstated their ownership or invented a result. RoleReady connects selection, clarification, writing, verification, and rehearsal in one local workflow.
 
@@ -32,11 +32,11 @@ Compared with a generic chatbot or document template, RoleReady:
 - links answer clauses to the source details supporting them;
 - deterministically checks numbers, ownership, unsupported edits, and format limits before approval;
 - remains useful offline without an API key or account; and
-- carries an approved answer directly into focused, pre-interview rehearsal.
+- carries the same approved evidence from résumé to application, cover letter and focused pre-interview rehearsal.
 
-## Primary outcome
+## Primary outcomes
 
-A new user should be able to produce one useful, grounded, approved, role-specific answer in approximately five minutes. The product does not require the user to learn a methodology or build a complete example library before receiving value.
+A new user should be able to import an existing résumé, approve the useful facts and produce a clean baseline résumé without re-entering their career. For a saved job, they should be able to produce one truthful tailored version, a grounded cover letter and one approved role-specific answer without maintaining separate copies of their history.
 
 The first-use path is:
 
@@ -57,11 +57,13 @@ Understand trust and privacy
 
 ## Information architecture
 
-- **Prepare** — primary task entry, guided preparation, active roles, readiness, and next actions.
-- **My Examples** — reusable experience records, search, evidence strength, confidentiality, and advanced editing.
-- **Practise** — approved answers, timed rehearsal, memory cues, likely follow-ups, and confidence records.
+- **Today** — next actions, active applications, readiness and shortcuts.
+- **Résumés** — source import, approved facts, version management, tailoring and PDF export.
+- **Jobs** — saved opportunities, match reports, application materials, progress and reminders.
+- **Interview** — approved answers, timed rehearsal, memory cues, likely follow-ups and confidence records.
+- **Career** — reusable work, education, skills, certifications, sources and examples.
 
-Saved-role management, Profile, Insights, Privacy, Settings, reminders, and post-interview reflections are secondary destinations. They remain available without competing with the main preparation loop.
+Profile, Insights, Privacy, Settings and post-interview reflections remain secondary destinations.
 
 ## Core capabilities
 
@@ -72,6 +74,14 @@ Users can import PDF, `.docx`, RTF, or plain text; paste résumé or rough caree
 ### Progressive example capture
 
 The guided path asks plain-language questions only when the answer would materially improve the story: what happened, what the user was responsible for, what they personally did, why they chose the approach, what changed, how they know, and what they learnt. The full evidence model remains available through advanced editing.
+
+### Résumé building and tailoring
+
+The approved career workspace is the source of truth for multiple résumé versions. Users can edit wording, reorder sections, duplicate or archive versions, select a technical or general template, and preview or share an ATS-safe selectable-text PDF. A job-specific version ranks approved evidence against confirmed requirements and exposes direct evidence, transferable evidence and honest gaps; it does not add unsupported keywords or accomplishments.
+
+### Cover letters and application tracking
+
+Cover letters use only approved evidence with a verified connection to the job. Users can edit the full draft, regenerate individual sections, inspect the evidence trail and keep a shorter honest letter when the profile lacks enough proof for filler-free target length. Each job also has a private workspace for status, contacts, notes, activity, reminders, tailored résumés and interview handoff.
 
 ### Role analysis and matching
 
@@ -100,15 +110,15 @@ Approved answers move directly into rehearsal with the interview question, three
 
 ### Export and restore
 
-The user can create a reduced-sensitivity or complete version 2 JSON archive. Restore accepts version 1 and version 2 exports, validates a maximum 20 MB file, previews importable records, duplicates, rejected dependencies, and sensitivity warnings, then requires explicit confirmation. It is add-only, skips UUID duplicates, never deletes local records, and rolls back a failed import. Version 1 answers restore as unapproved drafts because their provenance state cannot be established safely.
+The user can create a reduced-sensitivity or complete version 3 JSON archive. Restore accepts version 1, 2 and 3 exports, validates a maximum 20 MB file, previews importable records, duplicates, rejected dependencies and sensitivity warnings, then requires explicit confirmation. It is add-only, skips UUID duplicates, rejects cyclic résumé ancestry, never deletes local records and rolls back a failed import. Version 1 answers restore as unapproved drafts because their provenance state cannot be established safely.
 
 ## Product boundaries
 
 RoleReady is not:
 
 - a generic AI chatbot;
-- a broad job-search CRM, browser job scraper, or contact manager;
-- a résumé design platform or social network;
+- a recruiter-facing CRM, browser job scraper, job board, or social network;
+- a decorative résumé-layout marketplace;
 - covert or real-time interview assistance; or
 - a system that invents achievements, ownership, tools, organisations, or metrics.
 
@@ -129,6 +139,7 @@ The shipped product has no cloud provider, analytics, third-party tracking, acco
 
 - Deterministic résumé extraction works best with text-led documents and may split or group complex layouts imperfectly.
 - Deterministic requirement grouping can miss implicit or unusually formatted criteria; every theme remains editable.
-- The architecture identifies Apple on-device and optional cloud provider types, but only the deterministic local provider is implemented.
+- Automatic AI uses Apple Foundation Models on supported iOS 26+ devices and otherwise falls back to the deterministic local provider. Every generated clause still passes RoleReady’s local grounding and approval rules.
+- Optional open-weight and premium-cloud boundaries are implemented, but no model weights or provider credentials are bundled. A downloadable model is not exposed until its exact artifact passes the documented device evaluation and licence gate.
 - Restore is an add-only UUID-based process rather than a semantic, field-by-field merge.
 - There is no cross-device sync or collaborative workspace.

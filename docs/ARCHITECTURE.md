@@ -6,19 +6,21 @@ RoleReady is a device-owned SwiftUI application backed by SwiftData. The complet
 
 The application separates language interpretation from policy. Language services may propose drafts, requirement groups, wording, cues, or follow-up questions. Deterministic application code remains authoritative for privacy permissions, storage, match eligibility, source selection, numeric and ownership validation, word limits, approval, export, and restore.
 
-## Prepare-first data flow
+## Connected career data flow
 
 ```text
 Résumé, career notes, or manual input
 -> local text extraction
--> unverified value-type career drafts
--> user review and explicit matching approval
--> persisted Experience records
+-> unverified career, profile and source-span drafts
+-> user review and explicit approval
+-> persisted career facts, source records and baseline ResumeVersion
 
 Job advertisement
 -> deterministic requirement grouping
 -> editable, confirmed JobRequirement records
 -> relevance-gated evidence ranking
+-> truthful tailored ResumeVersion and grounded CoverLetter
+-> ApplicationActivity timeline and optional CareerReminder
 
 Question + selected verified Experience + allowed role context
 -> grounded draft and clause-level source claims
@@ -32,28 +34,40 @@ Import parsing and career/job analysis run away from the main actor through deta
 
 ## Persistence
 
-SwiftData owns seven models:
+SwiftData owns 17 models:
 
 1. `CareerProfile`
-2. `Experience`
-3. `Opportunity`
-4. `JobRequirement`
-5. `GeneratedAnswer`
-6. `PracticeSession`
-7. `InterviewReflection`
+2. `CareerSource`
+3. `CareerSourceSpan`
+4. `CareerPosition`
+5. `CareerEducation`
+6. `CareerCertification`
+7. `CareerSkill`
+8. `Experience`
+9. `Opportunity`
+10. `JobRequirement`
+11. `ResumeVersion`
+12. `CoverLetter`
+13. `ApplicationActivity`
+14. `CareerReminder`
+15. `GeneratedAnswer`
+16. `PracticeSession`
+17. `InterviewReflection`
 
-Cross-feature references use stable UUIDs. Enums are stored as raw strings, and collections are encoded into scalar storage where needed. Imported career candidates remain value-type `CareerHistoryDraft` values until the user reviews them; this prevents an extraction heuristic from silently populating the evidence store.
+Cross-feature references use stable UUIDs. Enums are stored as raw strings, and collections are encoded into scalar storage where needed. Imported career candidates remain value-type drafts until the user reviews them; this prevents an extraction heuristic from silently making evidence eligible for generation.
 
-The overhaul does not change the SwiftData model set or require a store migration. Richer claim metadata—source field, source text, claim origin, and support state—is backward-compatibly encoded in the existing `GeneratedAnswer.sourceClaimsJSON` field. Older claims decode with a `legacy` origin so edited legacy answers cannot inherit unearned approval.
+The career-workspace expansion is additive. New entities are registered in the same `ModelContainer`; new stored properties are optional or default-backed, allowing SwiftData's compatible automatic migration path to open an existing store. There is no destructive reset and no explicit `SchemaMigrationPlan`. Richer answer-claim metadata remains backward-compatibly encoded in `GeneratedAnswer.sourceClaimsJSON`; older claims decode with a `legacy` origin so edited legacy answers cannot inherit unearned approval.
 
 ## Application structure
 
-- `App` owns the three-tab shell, navigation routes, onboarding state, app-lock lifecycle, privacy shield, and model container.
-- `Features/Prepare` owns the guided preparation flow, answer studio, practice home and deck, and reflections.
-- `Features/Evidence` owns reusable examples and the advanced editor.
-- `Features/Roles` preserves role management, requirement editing, and detailed match reports as secondary tools.
+- `App` owns the five-tab shell, navigation routes, onboarding state, app-lock lifecycle, privacy shield, and model container.
+- `Features/Resume` owns résumé intake, review, library, editing, tailoring, PDF preview and export.
+- `Features/Applications` owns the job application workspace, cover letters, activity tracking and reminders.
+- `Features/Career` owns the approved career workspace; `Features/Evidence` owns reusable stories and advanced editing.
+- `Features/Prepare` owns guided interview preparation, answer studio, practice home, decks and reflections.
+- `Features/Roles` owns saved jobs, requirement editing and detailed match reports.
 - `Features/You` owns profile, insights, privacy, settings, export, restore, and deletion.
-- `Models` contains the seven SwiftData entities and shared domain types.
+- `Models` contains the 17 SwiftData entities and shared domain types.
 - `Services` contains document and career-history ingestion, parsing, scoring, matching, grounded generation, language-provider contracts, provenance, approval, export, restore, reminders, haptics, and device authentication.
 - `DesignSystem` provides semantic colours, Dynamic Type-aware typography, spacing, surfaces, and accessible reusable controls.
 
@@ -67,11 +81,17 @@ The Xcode project uses filesystem-synchronised source groups. The checked-in pro
 - group job requirements; and
 - compose an answer from a `GroundedExperience` value.
 
-`LanguageServiceDescriptor` declares provider kind, availability, display name, and whether data leaves the device. The known provider categories are deterministic local, Apple on-device, and optional cloud. `DeterministicLanguageService` is the only shipped implementation and delegates to `CareerHistoryIngestionService`, `JobParser`, and `GroundedAnswerEngine`.
+`LanguageServiceDescriptor` declares provider kind, availability, model identity, download needs, cost summary, privacy behaviour and whether data leaves the device. The shipped boundary now covers deterministic local, Apple on-device, optional local open-weight, and premium cloud providers.
+
+`LanguageProviderRegistry` resolves the user’s preference. Automatic mode chooses Apple Foundation Models only when iOS reports the system model available; otherwise it uses `DeterministicLanguageService`. Apple language refinement is never authoritative: every changed answer clause is reconciled through `AnswerProvenanceService`, while the application continues to decide approval.
+
+The open-weight provider has an integrity-checked model store and runtime protocol but no bundled model. `LocalModelCandidateCatalog` records Qwen3.5-2B and Gemma 3n E2B as evaluation candidates. Installing weights requires an exact manifest, byte count, SHA-256 checksum and explicit licence acceptance. Premium cloud transport is disabled until there is a secure backend; it requires explicit source-level consent and blocks highly sensitive data.
+
+`AIEvaluationHarness` runs the same synthetic extraction, requirement, grounding and ownership fixtures across providers. Current results and the physical-device gate are documented in `LOCAL_AI_EVALUATION.md`.
 
 This protocol is an extension boundary, not permission to move policy into a model. A future provider must return structured values, make its availability and transmission behaviour explicit, and pass the same deterministic validation before data is stored or an answer is approved. The product must continue to fall back to the deterministic provider.
 
-Current limitation: existing screens call the deterministic component services directly. The provider protocol and adapter exist, but a single injectable application-level provider registry is still required before providers can be swapped without UI wiring changes.
+The selected provider is applied to answer composition in `AnswerStudioView`. Résumé extraction, requirement grouping, matching, tailoring and cover-letter evidence selection remain deterministic in this release so the free local workflow is stable and testable. Extending model-assisted wording into those flows must retain the same structured-output and validation boundary.
 
 ## Honest evidence matching
 
@@ -96,9 +116,9 @@ Each `StoredAnswerClaim` records:
 
 ## Export and restore
 
-`ExportService` writes a sorted, ISO-8601, version 2 JSON envelope. The reduced-sensitivity filter is applied before derived answers and practice sessions are selected.
+`ExportService` writes a sorted, ISO-8601, version 3 JSON envelope containing the interview records plus career sources, source spans, approved career facts, résumé versions, cover letters, activities and reminders. The reduced-sensitivity filter is applied before source text and derived records are selected.
 
-`WorkspaceRestoreService` accepts version 1 and version 2 envelopes up to 20 MB and follows this sequence:
+`WorkspaceRestoreService` accepts version 1, 2 and 3 envelopes up to 20 MB and follows this sequence:
 
 ```text
 Read file -> verify JSON identifier and supported version
@@ -112,7 +132,7 @@ Read file -> verify JSON identifier and supported version
 
 Restore is deliberately add-only. Existing UUIDs win; local records are never overwritten or deleted. The only profile mutation allowed is filling a single genuinely empty, non-sample starter profile. Invalid independent records can be skipped while valid records restore, but a structurally malformed JSON collection fails safely before mutation.
 
-Version 1 compatibility is conservative: missing collections decode as empty, legacy answers return unapproved, and Highly sensitive examples without an explicit historical matching flag return disabled for automatic matching. Version 2 answer approval is restored only after current source, revision, dependency, provenance, word-count, and factual checks pass.
+Version 1 compatibility is conservative: missing collections decode as empty, legacy answers return unapproved, and Highly sensitive examples without an explicit historical matching flag return disabled for automatic matching. Version 2 predates the career workspace, so those collections restore empty with a warning. Version 3 validates source dependencies, résumé ancestry, cover-letter links, activities and reminders in addition to the existing answer provenance checks.
 
 ## Reliability and failure handling
 
@@ -133,7 +153,7 @@ Near-limit archive decoding and validation currently execute on the main actor b
 - The lifecycle privacy shield covers content whenever the scene becomes inactive.
 - The complete `AppShell` is marked `.privacySensitive()`; especially sensitive practice content also marks itself directly.
 - Highly sensitive examples are always blocked from automatic matching; explicit answer use still requires the user to approve the example for that use.
-- The default export omits Confidential and Highly sensitive examples, their derived answers and practice sessions, full job-ad source text, private role notes, and all reflections.
+- The default export omits Confidential and Highly sensitive examples and dependent materials, full extracted source text, full job-ad source text, private role notes, contact details, reminder notes, and all reflections.
 - There are no embedded secrets, analytics SDKs, trackers, accounts, network clients, or remote permissions.
 
 ## Platform boundary

@@ -347,7 +347,7 @@ struct DashboardView: View {
         if !experiences.isEmpty {
             VStack(alignment: .leading, spacing: RRSpacing.md) {
                 SectionHeading(title: "Recent stories", actionTitle: "See all") {
-                    appState.selectedTab = .examples
+                    appState.selectedTab = .career
                 }
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: RRSpacing.sm) {

@@ -16,6 +16,13 @@ final class PersistenceAndExportTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<Opportunity>()), 1)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<JobRequirement>()), 6)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<GeneratedAnswer>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CareerSource>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CareerPosition>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CareerEducation>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CareerSkill>()), 2)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ResumeVersion>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ApplicationActivity>()), 1)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<CareerReminder>()), 1)
     }
 
     func testExportExcludesConfidentialStoriesByDefault() throws {
@@ -384,9 +391,19 @@ final class PersistenceAndExportTests: XCTestCase {
     private func makeContainer() throws -> ModelContainer {
         let schema = Schema([
             CareerProfile.self,
+            CareerSource.self,
+            CareerSourceSpan.self,
+            CareerPosition.self,
+            CareerEducation.self,
+            CareerCertification.self,
+            CareerSkill.self,
             Experience.self,
             Opportunity.self,
             JobRequirement.self,
+            ResumeVersion.self,
+            CoverLetter.self,
+            ApplicationActivity.self,
+            CareerReminder.self,
             GeneratedAnswer.self,
             PracticeSession.self,
             InterviewReflection.self

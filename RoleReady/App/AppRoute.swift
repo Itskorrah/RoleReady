@@ -11,6 +11,9 @@ enum AppRoute: Hashable {
     case editAnswer(UUID)
     case prepDeck(UUID?)
     case reflection(UUID)
+    case resume(UUID)
+    case applicationWorkspace(UUID)
+    case examples
     case roles
     case profile
     case insights
@@ -19,6 +22,7 @@ enum AppRoute: Hashable {
 }
 
 enum SheetDestination: Identifiable, Hashable {
+    case resumeIntake
     case prepareForRole
     case addStory
     case editStory(UUID)
@@ -27,6 +31,7 @@ enum SheetDestination: Identifiable, Hashable {
 
     var id: String {
         switch self {
+        case .resumeIntake: "resume-intake"
         case .prepareForRole: "role-preparation"
         case .addStory, .editStory: "story-editor"
         case .addRole: "role-editor"

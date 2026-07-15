@@ -120,31 +120,32 @@ struct RoleDetailView: View {
     private func roleActions(_ opportunity: Opportunity) -> some View {
         VStack(spacing: RRSpacing.sm) {
             Button {
+                router.navigate(to: .applicationWorkspace(opportunity.id))
+            } label: {
+                Label("Open application workspace", systemImage: "folder.fill.badge.gearshape")
+            }
+            .buttonStyle(PrimaryActionButtonStyle())
+            .accessibilityHint("Tailor a résumé, draft a cover letter and track this application")
+            .accessibilityIdentifier("roleDetail.applicationWorkspace")
+
+            Button {
                 router.navigate(to: .matchReport(opportunity.id))
             } label: {
                 Label("View evidence match", systemImage: "arrow.triangle.branch")
             }
-            .buttonStyle(PrimaryActionButtonStyle())
+            .buttonStyle(SecondaryActionButtonStyle())
             .disabled(requirements.filter(\.isConfirmed).isEmpty)
             .opacity(requirements.contains(where: \.isConfirmed) ? 1 : 0.55)
             .accessibilityHint(requirements.filter(\.isConfirmed).isEmpty ? "Add a confirmed requirement first" : "Shows the best evidence for each requirement")
             .accessibilityIdentifier("roleDetail.matchReport")
 
             Button {
-                router.navigate(to: .answerStudio(experienceID: nil, opportunityID: opportunity.id))
+                router.navigate(to: .prepDeck(opportunity.id))
             } label: {
-                Label("Open answer studio", systemImage: "wand.and.stars")
+                Label("Prepare for this interview", systemImage: "quote.bubble.fill")
             }
             .buttonStyle(SecondaryActionButtonStyle())
-            .accessibilityIdentifier("roleDetail.answerStudio")
-
-            Button {
-                router.navigate(to: .reflection(opportunity.id))
-            } label: {
-                Label("Record interview reflection", systemImage: "square.and.pencil")
-            }
-            .buttonStyle(SecondaryActionButtonStyle())
-            .accessibilityIdentifier("roleDetail.reflection")
+            .accessibilityIdentifier("roleDetail.interviewPrep")
         }
     }
 

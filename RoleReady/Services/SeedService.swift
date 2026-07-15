@@ -13,11 +13,24 @@ struct SeedService {
         static let gitMentoring = UUID(uuidString: "20000000-0000-4000-8000-000000000006")!
         static let opportunity = UUID(uuidString: "30000000-0000-4000-8000-000000000001")!
         static let answer = UUID(uuidString: "40000000-0000-4000-8000-000000000001")!
+        static let careerSource = UUID(uuidString: "50000000-0000-4000-8000-000000000001")!
+        static let position = UUID(uuidString: "50000000-0000-4000-8000-000000000002")!
+        static let education = UUID(uuidString: "50000000-0000-4000-8000-000000000003")!
+        static let pythonSkill = UUID(uuidString: "50000000-0000-4000-8000-000000000004")!
+        static let sqlSkill = UUID(uuidString: "50000000-0000-4000-8000-000000000005")!
+        static let baselineResume = UUID(uuidString: "50000000-0000-4000-8000-000000000006")!
+        static let sourceSpan = UUID(uuidString: "50000000-0000-4000-8000-000000000007")!
+        static let savedActivity = UUID(uuidString: "50000000-0000-4000-8000-000000000008")!
+        static let followUpReminder = UUID(uuidString: "50000000-0000-4000-8000-000000000009")!
     }
 
     func installSampleWorkspace(in context: ModelContext) throws {
         let existing = try context.fetch(FetchDescriptor<CareerProfile>())
-        guard !existing.contains(where: { $0.id == IDs.profile }) else { return }
+        if let profile = existing.first(where: { $0.id == IDs.profile }) {
+            try installConnectedCareerSample(profile: profile, in: context)
+            try context.save()
+            return
+        }
 
         let profile = CareerProfile(
             id: IDs.profile,
@@ -89,6 +102,7 @@ struct SeedService {
                 createdAt: date(2026, 7, 10)
             ))
         }
+        try installConnectedCareerSample(profile: profile, in: context)
         try context.save()
     }
 
@@ -114,6 +128,16 @@ struct SeedService {
         let answers = try context.fetch(FetchDescriptor<GeneratedAnswer>())
         let sessions = try context.fetch(FetchDescriptor<PracticeSession>())
         let reflections = try context.fetch(FetchDescriptor<InterviewReflection>())
+        let sources = try context.fetch(FetchDescriptor<CareerSource>())
+        let spans = try context.fetch(FetchDescriptor<CareerSourceSpan>())
+        let positions = try context.fetch(FetchDescriptor<CareerPosition>())
+        let education = try context.fetch(FetchDescriptor<CareerEducation>())
+        let certifications = try context.fetch(FetchDescriptor<CareerCertification>())
+        let skills = try context.fetch(FetchDescriptor<CareerSkill>())
+        let resumes = try context.fetch(FetchDescriptor<ResumeVersion>())
+        let coverLetters = try context.fetch(FetchDescriptor<CoverLetter>())
+        let activities = try context.fetch(FetchDescriptor<ApplicationActivity>())
+        let reminders = try context.fetch(FetchDescriptor<CareerReminder>())
         let sampleExperienceIDs = Set(experiences.filter(\.isSample).map(\.id))
         let sampleOpportunityIDs = Set(opportunities.filter(\.isSample).map(\.id))
         let derivedAnswerIDs = Set(answers.filter {
@@ -129,10 +153,32 @@ struct SeedService {
         profiles.filter(\.isSample).forEach(context.delete)
         experiences.filter(\.isSample).forEach(context.delete)
         opportunities.filter(\.isSample).forEach(context.delete)
+        sources.filter(\.isSample).forEach(context.delete)
+        spans.filter { span in
+            sources.contains(where: { $0.isSample && $0.id == span.sourceID })
+        }.forEach(context.delete)
+        positions.filter(\.isSample).forEach(context.delete)
+        education.filter(\.isSample).forEach(context.delete)
+        certifications.filter(\.isSample).forEach(context.delete)
+        skills.filter(\.isSample).forEach(context.delete)
+        resumes.filter(\.isSample).forEach(context.delete)
+        coverLetters.filter(\.isSample).forEach(context.delete)
+        activities.filter(\.isSample).forEach(context.delete)
+        reminders.filter(\.isSample).forEach(context.delete)
         try context.save()
     }
 
     func deleteAll(from context: ModelContext) throws {
+        try context.delete(model: CareerReminder.self)
+        try context.delete(model: ApplicationActivity.self)
+        try context.delete(model: CoverLetter.self)
+        try context.delete(model: ResumeVersion.self)
+        try context.delete(model: CareerSourceSpan.self)
+        try context.delete(model: CareerSkill.self)
+        try context.delete(model: CareerCertification.self)
+        try context.delete(model: CareerEducation.self)
+        try context.delete(model: CareerPosition.self)
+        try context.delete(model: CareerSource.self)
         try context.delete(model: InterviewReflection.self)
         try context.delete(model: PracticeSession.self)
         try context.delete(model: GeneratedAnswer.self)
@@ -290,6 +336,196 @@ struct SeedService {
                 createdAt: date(2025, 3, 12)
             )
         ]
+    }
+
+    private func installConnectedCareerSample(profile: CareerProfile, in context: ModelContext) throws {
+        profile.email = profile.email.isEmpty ? "maya.chen@example.com" : profile.email
+        profile.location = profile.location.isEmpty ? "Sydney, NSW" : profile.location
+        profile.linkedIn = profile.linkedIn.isEmpty ? "linkedin.com/in/maya-chen" : profile.linkedIn
+
+        let sourceText = """
+        Maya Chen
+        Senior Data Analyst
+        Harbour Health Analytics | Sydney, NSW | 2021 – Present
+        • Rebuilt a critical SAS reporting workflow in Python and Polars while preserving approved business rules.
+        • Added schema checks and 133 regression tests against the approved SAS baseline.
+        • Stabilised 48 GB Parquet processing through lazy scanning and partition pruning.
+        Skills: Python, Polars, SQL, SAS, Azure Data Factory, Git, pytest
+        Bachelor of Information Systems | University of Technology Sydney | 2017 – 2020
+        """
+        let sources = try context.fetch(FetchDescriptor<CareerSource>())
+        let source: CareerSource
+        if let existing = sources.first(where: { $0.id == IDs.careerSource }) {
+            source = existing
+        } else {
+            source = CareerSource(
+                id: IDs.careerSource,
+                kind: .resume,
+                name: "Maya Chen technical résumé",
+                filename: "maya-chen-resume.pdf",
+                contentType: "application/pdf",
+                rawText: sourceText,
+                fingerprint: "sample-maya-resume-v1",
+                confidentiality: .privateRecord,
+                isSample: true,
+                importedAt: date(2026, 7, 8),
+                updatedAt: date(2026, 7, 8)
+            )
+            context.insert(source)
+        }
+
+        let positions = try context.fetch(FetchDescriptor<CareerPosition>())
+        let position: CareerPosition
+        if let existing = positions.first(where: { $0.id == IDs.position }) {
+            position = existing
+        } else {
+            let excerpt = "Senior Data Analyst\nHarbour Health Analytics | Sydney, NSW | 2021 – Present"
+            position = CareerPosition(
+                id: IDs.position,
+                sourceID: source.id,
+                title: "Senior Data Analyst",
+                organisation: "Harbour Health Analytics",
+                location: "Sydney, NSW",
+                startDate: date(2021, 2, 1),
+                isCurrent: true,
+                summary: "Modernises and protects business-critical analytics workflows.",
+                bullets: [
+                    "Rebuilt a critical SAS reporting workflow in Python and Polars while preserving approved business rules.",
+                    "Added schema checks and 133 regression tests against the approved SAS baseline.",
+                    "Stabilised 48 GB Parquet processing through lazy scanning and partition pruning."
+                ],
+                skills: ["Python", "Polars", "SQL", "SAS", "Azure Data Factory", "Git", "pytest"],
+                sourceExcerpt: excerpt,
+                verificationStatus: .approved,
+                confidentiality: .privateRecord,
+                approvedAt: date(2026, 7, 8),
+                isSample: true,
+                createdAt: date(2026, 7, 8),
+                updatedAt: date(2026, 7, 8)
+            )
+            context.insert(position)
+        }
+
+        let educationRecords = try context.fetch(FetchDescriptor<CareerEducation>())
+        let education: CareerEducation
+        if let existing = educationRecords.first(where: { $0.id == IDs.education }) {
+            education = existing
+        } else {
+            education = CareerEducation(
+                id: IDs.education,
+                sourceID: source.id,
+                institution: "University of Technology Sydney",
+                qualification: "Bachelor of Information Systems",
+                startDate: date(2017, 2, 1),
+                endDate: date(2020, 11, 1),
+                sourceExcerpt: "Bachelor of Information Systems | University of Technology Sydney | 2017 – 2020",
+                verificationStatus: .approved,
+                isSample: true,
+                createdAt: date(2026, 7, 8),
+                updatedAt: date(2026, 7, 8)
+            )
+            context.insert(education)
+        }
+
+        let existingSkills = try context.fetch(FetchDescriptor<CareerSkill>())
+        let skillDefinitions: [(UUID, String, String, Double)] = [
+            (IDs.pythonSkill, "Python", "Languages", 6),
+            (IDs.sqlSkill, "SQL", "Languages", 7)
+        ]
+        var careerSkills: [CareerSkill] = []
+        for definition in skillDefinitions {
+            if let existing = existingSkills.first(where: { $0.id == definition.0 }) {
+                careerSkills.append(existing)
+                continue
+            }
+            let skill = CareerSkill(
+                id: definition.0,
+                sourceID: source.id,
+                name: definition.1,
+                category: definition.2,
+                level: .advanced,
+                yearsExperience: definition.3,
+                lastUsedAt: Date(),
+                sourceExcerpt: "Skills: Python, Polars, SQL, SAS, Azure Data Factory, Git, pytest",
+                verificationStatus: .approved,
+                isSample: true,
+                createdAt: date(2026, 7, 8),
+                updatedAt: date(2026, 7, 8)
+            )
+            context.insert(skill)
+            careerSkills.append(skill)
+        }
+
+        let spans = try context.fetch(FetchDescriptor<CareerSourceSpan>())
+        if !spans.contains(where: { $0.id == IDs.sourceSpan }),
+           let range = sourceText.range(of: position.title) {
+            context.insert(CareerSourceSpan(
+                id: IDs.sourceSpan,
+                sourceID: source.id,
+                entityID: position.id,
+                entityType: "careerPosition",
+                fieldPath: "title",
+                startOffset: sourceText.distance(from: sourceText.startIndex, to: range.lowerBound),
+                endOffset: sourceText.distance(from: sourceText.startIndex, to: range.upperBound),
+                excerpt: position.title,
+                confidence: 1,
+                isApproved: true,
+                createdAt: date(2026, 7, 8)
+            ))
+        }
+
+        let resumes = try context.fetch(FetchDescriptor<ResumeVersion>())
+        if !resumes.contains(where: { $0.id == IDs.baselineResume }) {
+            let document = ResumeDocumentFactory().makeDocument(
+                profile: profile,
+                positions: [position],
+                education: [education],
+                certifications: [],
+                skills: careerSkills
+            )
+            context.insert(ResumeVersion(
+                id: IDs.baselineResume,
+                sourceID: source.id,
+                name: "Maya Chen · Technical baseline",
+                targetRole: "Senior Data Engineer",
+                template: .technical,
+                status: .ready,
+                document: document,
+                isBaseline: true,
+                isSample: true,
+                createdAt: date(2026, 7, 8),
+                updatedAt: date(2026, 7, 8)
+            ))
+        }
+
+        let activities = try context.fetch(FetchDescriptor<ApplicationActivity>())
+        if !activities.contains(where: { $0.id == IDs.savedActivity }) {
+            context.insert(ApplicationActivity(
+                id: IDs.savedActivity,
+                opportunityID: IDs.opportunity,
+                kind: .interview,
+                title: "Panel interview scheduled",
+                notes: "Review the role-specific prep deck and technical examples.",
+                occurredAt: date(2026, 7, 12),
+                isSample: true,
+                createdAt: date(2026, 7, 12)
+            ))
+        }
+
+        let reminders = try context.fetch(FetchDescriptor<CareerReminder>())
+        if !reminders.contains(where: { $0.id == IDs.followUpReminder }) {
+            context.insert(CareerReminder(
+                id: IDs.followUpReminder,
+                opportunityID: IDs.opportunity,
+                kind: .interview,
+                title: "Prepare for the CobaltGrid interview",
+                notes: "Practise the grounded migration and data-quality examples.",
+                dueAt: futureDate(days: 13, hour: 17),
+                isSample: true,
+                createdAt: date(2026, 7, 12),
+                updatedAt: date(2026, 7, 12)
+            ))
+        }
     }
 
     private func sampleRequirements(opportunityID: UUID) -> [JobRequirement] {
